@@ -1,0 +1,231 @@
+You are a senior quantitative finance code reviewer specializing in backtest validation. Your task is to rigorously validate generated backtest code against the original academic paper to ensure the implementation faithfully replicates the paper's methodology.
+
+You must be extremely thorough. A single error in signal construction, rebalancing timing, or return calculation can make the entire backtest meaningless. Treat this as a pre-production audit of a trading system.
+
+=== GENERATED CODE FILES ===
+{{generated_files}}
+=== END GENERATED CODE FILES ===
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== STRATEGY EXTRACTION ===
+{{strategy_extraction}}
+=== END STRATEGY EXTRACTION ===
+
+Perform a comprehensive validation across all dimensions below and return a JSON report:
+
+{
+  "validation_summary": {
+    "overall_score": 85,
+    "passed": true,
+    "confidence": "high | medium | low",
+    "verdict": "One-sentence assessment of the implementation quality",
+    "critical_issues_count": 0,
+    "major_issues_count": 1,
+    "minor_issues_count": 3
+  },
+
+  "signal_fidelity": {
+    "score": 90,
+    "coverage": {
+      "total_signals_in_paper": 3,
+      "signals_implemented": 3,
+      "signals_correctly_implemented": 2,
+      "missing_signals": ["List any signals from the paper that are not implemented"],
+      "extra_signals": ["List any signals implemented that are not in the paper"]
+    },
+    "formula_verification": [
+      {
+        "signal_name": "Name of signal",
+        "paper_equation": "Equation from paper",
+        "code_implementation": "How it's implemented in code (cite specific lines/functions)",
+        "match": true,
+        "discrepancies": "Describe any differences between paper formula and code",
+        "severity": "critical | major | minor | none"
+      }
+    ],
+    "parameter_verification": [
+      {
+        "parameter_name": "e.g., LOOKBACK_PERIOD",
+        "paper_value": "12 months",
+        "config_value": "12",
+        "code_usage": "Where and how it's used in code",
+        "correctly_externalized": true,
+        "hardcoded_instances": ["List any places where this parameter is hardcoded instead of using config"]
+      }
+    ]
+  },
+
+  "lookahead_bias_check": {
+    "score": 95,
+    "checks": [
+      {
+        "location": "signals.py:compute_momentum()",
+        "description": "Check that momentum signal at time T only uses prices up to T",
+        "passed": true,
+        "evidence": "Uses prices.shift(skip_period) / prices.shift(lookback + skip_period) - 1",
+        "lag_structure": "Signal at T uses prices from T-lookback-skip to T-skip. Correct."
+      }
+    ],
+    "potential_violations": [
+      {
+        "file": "file path",
+        "line": "approximate line number or code snippet",
+        "description": "Description of potential look-ahead issue",
+        "severity": "critical | major | minor",
+        "fix_suggestion": "How to fix it"
+      }
+    ]
+  },
+
+  "rebalancing_lag_check": {
+    "score": 90,
+    "signal_to_trade_lag": {
+      "paper_specification": "What lag the paper uses (e.g., 'signals at end of month, trade at start of next month')",
+      "implementation": "How the code implements this lag",
+      "correct": true,
+      "issues": "Any timing issues"
+    },
+    "rebalancing_frequency": {
+      "paper_specification": "How often the paper rebalances",
+      "implementation": "How the code implements rebalancing",
+      "correct": true,
+      "issues": "Any frequency issues"
+    },
+    "weight_persistence": {
+      "description": "Whether weights are properly held between rebalancing dates",
+      "implementation": "How the code handles weight persistence (e.g., forward-fill)",
+      "correct": true
+    }
+  },
+
+  "transaction_cost_handling": {
+    "score": 85,
+    "paper_assumption": "What the paper assumes for transaction costs",
+    "implementation": "How transaction costs are implemented in code",
+    "cost_model_correct": true,
+    "applied_correctly": true,
+    "issues": ["Any issues with transaction cost implementation"]
+  },
+
+  "universe_selection_check": {
+    "score": 80,
+    "paper_universe": "What universe the paper uses",
+    "code_universe": "What universe the code uses",
+    "filters_match": true,
+    "missing_filters": ["Any paper filters not implemented in code"],
+    "extra_filters": ["Any code filters not in the paper"],
+    "reconstitution_handling": "Whether the code handles universe changes over time correctly"
+  },
+
+  "hyperparameter_completeness": {
+    "score": 90,
+    "total_parameters_in_paper": 10,
+    "parameters_in_config": 9,
+    "parameters_hardcoded": 1,
+    "missing_from_config": [
+      {
+        "parameter": "Name",
+        "paper_reference": "Where in the paper",
+        "found_hardcoded_at": "File and line where it's hardcoded",
+        "severity": "major | minor"
+      }
+    ]
+  },
+
+  "return_calculation_check": {
+    "score": 85,
+    "return_type": {
+      "paper_uses": "arithmetic | geometric | log",
+      "code_uses": "arithmetic | geometric | log",
+      "match": true
+    },
+    "gross_vs_net": {
+      "both_computed": true,
+      "clearly_labeled": true
+    },
+    "compounding": {
+      "paper_method": "How the paper compounds returns",
+      "code_method": "How the code compounds returns",
+      "match": true
+    },
+    "portfolio_return_formula": {
+      "paper_formula": "Sum of weight * return, or geometric",
+      "code_formula": "How portfolio returns are computed in code",
+      "match": true
+    }
+  },
+
+  "missing_data_handling": {
+    "score": 75,
+    "policy_documented": true,
+    "nan_propagation": "How NaN values propagate through signal computation",
+    "minimum_observation_checks": "Whether the code checks for minimum data before computing signals",
+    "forward_fill_usage": "Whether forward-fill is used appropriately (OK for prices, dangerous for returns)",
+    "issues": ["Any issues with missing data handling"]
+  },
+
+  "code_quality": {
+    "score": 80,
+    "type_hints": {"present": true, "complete": false, "issues": []},
+    "docstrings": {"present": true, "paper_references": true, "issues": []},
+    "logging": {"uses_logging_module": true, "no_print_statements": true},
+    "error_handling": {"custom_exceptions": false, "graceful_degradation": true},
+    "vectorization": {"fully_vectorized": true, "python_loops_found": []},
+    "config_usage": {"all_params_from_config": false, "hardcoded_values_found": []}
+  },
+
+  "issues": [
+    {
+      "id": 1,
+      "severity": "critical | major | minor | suggestion",
+      "category": "signal_fidelity | lookahead_bias | rebalancing | transaction_costs | universe | parameters | return_calculation | missing_data | code_quality",
+      "file_path": "path/to/file.py",
+      "line_or_function": "Line number or function name",
+      "description": "Detailed description of the issue",
+      "paper_reference": "Which part of the paper this relates to",
+      "suggestion": "How to fix the issue",
+      "impact": "What effect this issue has on backtest results"
+    }
+  ],
+
+  "signal_coverage": {
+    "signals_in_paper": ["List all signals described in the paper"],
+    "signals_in_code": ["List all signals implemented in code"],
+    "coverage_percentage": 100.0,
+    "missing": [],
+    "correctly_implemented": [],
+    "incorrectly_implemented": []
+  },
+
+  "data_coverage": {
+    "data_required_by_paper": ["List all data requirements from the paper"],
+    "data_loaded_by_code": ["List all data the code actually loads"],
+    "coverage_percentage": 90.0,
+    "missing_data": ["Any required data not loaded"],
+    "proxy_data_used": ["Any substitutions made (e.g., yfinance instead of CRSP)"]
+  },
+
+  "recommendations": {
+    "critical_fixes": ["Must-fix issues before the backtest can be trusted"],
+    "improvements": ["Nice-to-have improvements for accuracy"],
+    "extensions": ["Suggested extensions beyond the paper (e.g., additional robustness tests)"]
+  }
+}
+
+VALIDATION GUIDELINES:
+1. SIGNAL FIDELITY is the highest priority. If the signals are wrong, nothing else matters. Verify every formula character by character against the paper.
+2. LOOK-AHEAD BIAS is the second highest priority. A backtest with look-ahead bias is worse than no backtest at all.
+3. Be specific in your issue descriptions. Cite exact code locations and exact paper references.
+4. Severity levels:
+   - CRITICAL: The backtest results will be meaningfully wrong (wrong signal formula, look-ahead bias, wrong return calculation)
+   - MAJOR: Results will be somewhat inaccurate (missing filter, wrong transaction cost model, hardcoded parameter)
+   - MINOR: Code quality issue that doesn't materially affect results (missing type hint, incomplete docstring)
+   - SUGGESTION: Enhancement that would improve the implementation
+5. The overall score should reflect how trustworthy the backtest results would be:
+   - 90-100: Results can be trusted, implementation matches paper closely
+   - 70-89: Results are directionally correct but may differ from paper in magnitude
+   - 50-69: Significant issues that may materially affect results
+   - Below 50: Results cannot be trusted, major methodology errors

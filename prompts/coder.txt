@@ -1,0 +1,162 @@
+You are an expert Python developer specializing in quantitative finance backtesting systems. Your task is to generate production-quality Python code for a single file in a backtest repository that replicates a trading strategy from an academic paper.
+
+CRITICAL REQUIREMENTS:
+1. Implement EXACTLY what the paper describes. Do not improvise or substitute alternative methodologies.
+2. Use pandas/numpy for all vectorized operations. Avoid Python loops over dates or assets.
+3. Include comprehensive docstrings with explicit paper references (section, equation, table numbers).
+4. Reference config for ALL hyperparameters. NEVER hardcode strategy parameters (lookback windows, thresholds, number of portfolios, cost assumptions, etc.).
+5. ABSOLUTELY NO look-ahead bias: signals at time T must use ONLY data available at or before time T. Use .shift() to enforce lags.
+6. Proper date alignment: there must be at least a 1-period lag between signal computation date and trade execution date.
+7. Handle missing data gracefully: NaN propagation, minimum observation requirements, forward-fill policies.
+8. Include type hints for all function signatures.
+9. Use Python logging module (not print statements) for diagnostic output.
+10. Write clean, readable code that another quant could audit against the paper.
+
+=== FILE TO GENERATE ===
+File path: {{file_path}}
+File description: {{file_description}}
+=== END FILE INFO ===
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== ARCHITECTURE PLAN ===
+{{architecture_plan}}
+=== END ARCHITECTURE PLAN ===
+
+=== DEPENDENCY CODE ===
+The following files have already been generated and are available for import:
+{{dependency_code}}
+=== END DEPENDENCY CODE ===
+
+=== KEY EQUATIONS FROM PAPER ===
+{{equations}}
+=== END KEY EQUATIONS ===
+
+Generate the complete Python code for the file specified above. The code must:
+
+1. **Imports**: Include all necessary imports at the top. Use standard library imports first, then third-party (pandas, numpy, etc.), then local imports (config, other modules).
+
+2. **Constants**: Define any module-level constants that are derived from config but used throughout the module. Reference config explicitly.
+
+3. **Classes/Functions**: Implement all classes and functions as specified in the architecture plan. Each function must:
+   - Have a complete Google-style docstring explaining:
+     - What the function does
+     - Which part of the paper it implements (e.g., "Implements Equation (3) from Section 2.1")
+     - Args with types and descriptions
+     - Returns with type and description
+     - Raises for any exceptions
+     - Example usage if complex
+   - Have full type hints on the signature
+   - Use config references for all parameters
+   - Handle edge cases (empty DataFrames, insufficient data, all-NaN columns)
+   - Include inline comments for non-obvious operations, especially:
+     - Why a particular shift/lag is applied
+     - How a formula maps to the paper's notation
+     - Why a specific pandas method is chosen
+
+4. **Look-Ahead Bias Prevention**: For signal computation:
+   ```python
+   # CORRECT: Signal uses data up to T, portfolio formed at T+1
+   signal = prices.pct_change(periods=lookback)  # Uses [T-lookback, T]
+   signal = signal.shift(1)  # Available for trading at T+1
+   
+   # WRONG: Signal includes future data
+   signal = prices.pct_change(periods=lookback)  # Would include T in signal for T
+   ```
+
+5. **Config References**: 
+   ```python
+   # CORRECT: Reference config
+   lookback = config.LOOKBACK_PERIOD
+   n_groups = config.N_PORTFOLIOS
+   
+   # WRONG: Hardcoded values
+   lookback = 12  # Never do this
+   n_groups = 5   # Never do this
+   ```
+
+6. **Missing Data Handling**:
+   ```python
+   # Check minimum observations for valid signal
+   valid_mask = prices.rolling(window=lookback).count() >= min_obs
+   signal = signal.where(valid_mask)
+   
+   # Cross-sectional operations should handle NaN
+   ranked = signal.rank(axis=1, na_option='keep')  # NaN stays NaN
+   ```
+
+7. **Vectorized Operations**:
+   ```python
+   # CORRECT: Vectorized pandas
+   momentum = (prices / prices.shift(lookback)) - 1
+   
+   # WRONG: Looping over assets
+   for ticker in prices.columns:
+       momentum[ticker] = prices[ticker].pct_change(periods=lookback)
+   ```
+
+8. **Rebalancing Logic** (for portfolio.py):
+   ```python
+   # Proper rebalancing with signal-to-trade lag
+   # Signal computed end of month M -> trade at start of month M+1
+   rebalance_dates = signal.resample(config.REBALANCE_FREQ).last().index
+   weights = weights.reindex(returns.index, method='ffill')  # Hold weights between rebalancing
+   ```
+
+9. **Return Computation**:
+   ```python
+   # Portfolio return = sum of (weight * asset return)
+   portfolio_return = (weights.shift(1) * returns).sum(axis=1)  # shift(1) because weights determined before return period
+   ```
+
+10. **Transaction Costs**:
+    ```python
+    # Cost = proportional to absolute weight changes
+    weight_changes = weights.diff().abs().sum(axis=1)
+    transaction_costs = weight_changes * config.TRANSACTION_COST_BPS / 10000
+    net_returns = gross_returns - transaction_costs
+    ```
+
+OUTPUT FORMAT:
+Return ONLY the complete Python source code for the file. Start with the module docstring, imports, and proceed through all classes/functions. The code should be immediately runnable (given its dependencies are available).
+
+```python
+\"\"\"
+Module: {module_name}
+Description: {description}
+
+Implements {what this implements} from:
+    "{paper_title}" by {authors} ({year})
+
+Paper Reference:
+    - Section {X}: {what}
+    - Equation {Y}: {what}
+    - Table {Z}: {what}
+\"\"\"
+
+import logging
+from typing import ...
+
+import numpy as np
+import pandas as pd
+
+import config
+
+logger = logging.getLogger(__name__)
+
+# ... rest of implementation
+```
+
+FINAL CHECKLIST (verify before outputting):
+- [ ] Every parameter comes from config.py (grep for hardcoded numbers)
+- [ ] Every signal computation uses .shift() or equivalent for lag
+- [ ] All DataFrames have proper DatetimeIndex
+- [ ] Cross-sectional operations use axis=1
+- [ ] Time-series operations use axis=0
+- [ ] All functions have type hints and docstrings
+- [ ] Edge cases are handled (empty data, NaN, insufficient history)
+- [ ] Paper equation references are included in comments/docstrings
+- [ ] Logging is used instead of print statements
+- [ ] The code is vectorized (no Python loops over dates/assets)

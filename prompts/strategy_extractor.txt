@@ -1,0 +1,200 @@
+You are a quantitative finance research analyst specializing in extracting implementable trading strategies from academic papers. Your task is to perform a meticulous, exhaustive extraction of every trading strategy component from the following quantitative finance paper.
+
+CRITICAL INSTRUCTION: Extract EVERY equation, parameter, and methodological detail. Missing a single signal construction step will produce incorrect backtest results. When in doubt, include more detail rather than less. If the paper references multiple variants of a strategy, extract ALL of them.
+
+=== PAPER CONTENT ===
+{{paper_content}}
+=== END PAPER CONTENT ===
+
+Analyze the paper above and produce a comprehensive JSON extraction of the trading strategy. You must populate every field below. If information is not explicitly stated in the paper, note it as "not_specified" with your best inference marked as "inferred: <value>".
+
+Return your response as a single JSON object with the following structure:
+
+{
+  "strategy_name": "The canonical name of the strategy as described in the paper",
+  "authors": ["List of all authors"],
+  "publication_year": "Year of publication or working paper date",
+  "paper_title": "Full title of the paper",
+  "journal": "Journal name if published, or 'working_paper'",
+
+  "asset_classes": {
+    "primary": ["List from: equities, bonds, commodities, currencies, crypto, options, futures, multi_asset"],
+    "specific_instruments": "Detailed description of exact instruments (e.g., 'US large-cap equities in CRSP universe', 'G10 currency pairs', 'S&P 500 constituents')",
+    "geographic_scope": "US, global, developed_markets, emerging_markets, specific countries"
+  },
+
+  "signal_types": {
+    "primary": ["List from: momentum, value, carry, mean_reversion, volatility, quality, sentiment, seasonal, trend_following, statistical_arbitrage, factor_timing, macro, liquidity, low_risk"],
+    "secondary": ["Any auxiliary signals used for filtering or combination"],
+    "classification_rationale": "Brief explanation of why these signal types apply"
+  },
+
+  "signal_construction": {
+    "overview": "High-level description of how the signal is constructed",
+    "detailed_steps": [
+      {
+        "step_number": 1,
+        "description": "Detailed description of this step",
+        "formula": "LaTeX or plain-text formula if applicable",
+        "inputs": ["What data inputs are needed"],
+        "output": "What this step produces",
+        "parameters": {"param_name": "param_value_or_range"},
+        "implementation_notes": "Any nuances for implementation"
+      }
+    ],
+    "normalization": "How signals are normalized (z-score, rank, percentile, min-max, none)",
+    "winsorization": "Whether and how extreme values are handled (e.g., winsorize at 1%/99%)",
+    "signal_frequency": "How often the signal is computed (daily, weekly, monthly)",
+    "cross_sectional_vs_time_series": "Whether the signal is cross-sectional (relative ranking) or time-series (absolute level) or both"
+  },
+
+  "portfolio_construction": {
+    "method": "long_only | long_short | long_short_dollar_neutral | long_short_beta_neutral | risk_parity | optimization",
+    "weighting_scheme": "equal_weight | value_weight | signal_weight | inverse_volatility | optimization_based",
+    "long_leg": "How the long portfolio is formed (e.g., 'top quintile by signal', 'top 30% of stocks')",
+    "short_leg": "How the short portfolio is formed (e.g., 'bottom quintile by signal') or 'none' for long-only",
+    "number_of_portfolios": "How many sorted portfolios (quintiles=5, deciles=10, terciles=3)",
+    "sorting_methodology": "independent_sort | dependent_sort | conditional_sort | regression_based",
+    "leverage": "Target leverage or gross exposure",
+    "constraints": "Position limits, sector constraints, turnover limits, etc.",
+    "hedging": "Any hedging applied (market hedge, factor hedge, etc.)"
+  },
+
+  "rebalancing_frequency": {
+    "primary": "daily | weekly | monthly | quarterly | annual",
+    "specific_timing": "e.g., 'last trading day of month', 'third Friday', 'June and December'",
+    "signal_lag": "Time between signal computation and trade execution (e.g., '1 day', '1 month')",
+    "implementation_delay": "Any additional implementation delay mentioned"
+  },
+
+  "universe_selection": {
+    "base_universe": "Starting universe (e.g., 'all NYSE/AMEX/NASDAQ stocks', 'Russell 3000')",
+    "filters": [
+      {
+        "filter_name": "Name of filter",
+        "filter_rule": "Exact rule (e.g., 'market cap > $100M', 'price > $5')",
+        "rationale": "Why this filter is applied"
+      }
+    ],
+    "liquidity_requirements": "Minimum volume, market cap, or other liquidity thresholds",
+    "exclusions": "What is excluded (financials, utilities, REITs, ADRs, etc.)",
+    "reconstitution": "How often the universe is updated"
+  },
+
+  "data_requirements": {
+    "price_data": {
+      "needed": true,
+      "type": "adjusted_close | unadjusted | total_return | excess_return",
+      "frequency": "daily | weekly | monthly",
+      "fields": ["open", "high", "low", "close", "volume", "adjusted_close"]
+    },
+    "fundamental_data": {
+      "needed": false,
+      "fields": ["List specific fields: book_value, earnings, revenue, etc."],
+      "point_in_time": "Whether point-in-time data is required to avoid look-ahead bias",
+      "reporting_lag": "Assumed lag for fundamental data availability (e.g., '3 months after fiscal year end')"
+    },
+    "other_data": {
+      "needed": false,
+      "description": "Any other data: yields, options, sentiment, macro, etc.",
+      "fields": ["Specific fields needed"],
+      "source": "Data source mentioned in paper"
+    },
+    "benchmark_data": {
+      "benchmark_name": "e.g., 'S&P 500 total return', 'risk-free rate (1-month T-bill)'",
+      "source": "Data source for benchmark"
+    },
+    "sample_period": {
+      "start_date": "Start of paper's sample period",
+      "end_date": "End of paper's sample period",
+      "out_of_sample_period": "If the paper has an OOS test period"
+    }
+  },
+
+  "reported_results": {
+    "main_strategy": {
+      "annualized_return": "As reported (e.g., '12.5% per year')",
+      "annualized_volatility": "As reported",
+      "sharpe_ratio": "As reported",
+      "max_drawdown": "As reported",
+      "sortino_ratio": "If reported",
+      "information_ratio": "If reported",
+      "alpha": "CAPM or factor alpha if reported",
+      "beta": "Market beta if reported",
+      "turnover": "Portfolio turnover if reported"
+    },
+    "sub_strategies": [
+      {
+        "name": "Name of sub-strategy or portfolio (e.g., 'momentum quintile 5')",
+        "metrics": {}
+      }
+    ],
+    "factor_exposures": "Any reported factor loadings (Fama-French, Carhart, etc.)",
+    "statistical_significance": "t-statistics, p-values, confidence intervals reported"
+  },
+
+  "transaction_costs": {
+    "assumed_in_paper": "What the paper assumes (e.g., '10 bps one-way', 'none', '0.5% round-trip')",
+    "cost_model": "fixed | proportional | market_impact | none",
+    "slippage": "Any slippage assumptions",
+    "market_impact": "Any market impact model used"
+  },
+
+  "lookback_periods": {
+    "signal_formation": ["List all formation/lookback periods tested (e.g., '3 months', '6 months', '12 months')"],
+    "primary_lookback": "The main lookback period used in primary results",
+    "skip_period": "Any skip period (e.g., 'skip most recent month' for momentum)",
+    "estimation_window": "For any statistical estimates (volatility, correlation, etc.)"
+  },
+
+  "holding_periods": {
+    "primary": "Main holding period before rebalancing",
+    "tested_variants": ["Other holding periods tested"],
+    "overlapping_portfolios": "Whether overlapping portfolios are used (Jegadeesh-Titman style)"
+  },
+
+  "key_equations": [
+    {
+      "equation_name": "Descriptive name of the equation",
+      "equation": "The equation in LaTeX or plain text",
+      "variables": {"variable_name": "description and units"},
+      "context": "Where and how this equation is used",
+      "equation_number": "Reference number from paper if available"
+    }
+  ],
+
+  "robustness_tests": [
+    {
+      "test_name": "Name of robustness check",
+      "description": "What is being tested",
+      "result_summary": "Key finding"
+    }
+  ],
+
+  "risk_model": {
+    "type": "none | volatility_targeting | factor_model | risk_parity | var_limit | max_drawdown_control",
+    "description": "Detailed description of risk management approach",
+    "volatility_target": "If applicable, the target volatility",
+    "position_sizing": "How individual position sizes are determined",
+    "stop_loss": "Any stop-loss rules",
+    "risk_factor_model": "If factor model is used, which factors"
+  },
+
+  "implementation_challenges": [
+    "List any implementation challenges, data issues, or practical considerations mentioned in the paper"
+  ],
+
+  "related_literature": [
+    "Key papers referenced that inform the methodology"
+  ]
+}
+
+IMPORTANT GUIDELINES:
+1. Be extremely precise with equations. Copy them exactly as they appear in the paper.
+2. If the paper tests multiple parameter values, list ALL of them, marking which is the "primary" specification.
+3. For signal construction, err on the side of over-specification. Include every intermediate calculation step.
+4. Clearly distinguish between what is EXPLICITLY stated in the paper versus what you are INFERRING.
+5. Pay special attention to lag structures - when data becomes available vs. when trades are executed.
+6. Note any data adjustments (split adjustment, dividend adjustment, inflation adjustment).
+7. If the paper uses proprietary data that cannot be replicated, note this and suggest publicly available alternatives.
+8. Extract ALL tables of results, not just the headline numbers.

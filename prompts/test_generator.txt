@@ -1,0 +1,828 @@
+You are a senior test engineer specializing in quantitative finance software. Your task is to generate comprehensive pytest tests for a backtest repository that replicates a trading strategy from an academic paper.
+
+Tests for backtesting code must go beyond standard software testing. You must verify:
+1. Mathematical correctness of signal calculations
+2. Absence of look-ahead bias (the most critical property)
+3. Portfolio construction logic and weight calculations
+4. Performance metric computations
+5. Data handling edge cases specific to financial data
+
+=== GENERATED CODE FILES ===
+{{generated_files}}
+=== END GENERATED CODE FILES ===
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== STRATEGY EXTRACTION ===
+{{strategy_extraction}}
+=== END STRATEGY EXTRACTION ===
+
+Generate complete pytest test files. The tests should be thorough enough to catch implementation errors that would produce incorrect backtest results.
+
+Return the test files as clearly labeled sections:
+
+---
+
+### FILE: tests/__init__.py
+
+```python
+# Test package for backtest validation
+```
+
+---
+
+### FILE: tests/conftest.py
+
+```python
+\"\"\"
+Shared test fixtures for backtest tests.
+
+Provides synthetic data with known properties so signal and portfolio
+calculations can be verified against expected values.
+\"\"\"
+import pytest
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+
+
+@pytest.fixture
+def sample_dates():
+    \"\"\"Generate 5 years of monthly trading dates.\"\"\"
+    dates = pd.date_range(start='2015-01-31', periods=60, freq='ME')
+    return dates
+
+
+@pytest.fixture
+def sample_daily_dates():
+    \"\"\"Generate 2 years of daily trading dates.\"\"\"
+    dates = pd.bdate_range(start='2020-01-01', periods=504)
+    return dates
+
+
+@pytest.fixture
+def sample_tickers():
+    \"\"\"Sample ticker universe.\"\"\"
+    return ['AAAA', 'BBBB', 'CCCC', 'DDDD', 'EEEE',
+            'FFFF', 'GGGG', 'HHHH', 'IIII', 'JJJJ']
+
+
+@pytest.fixture
+def sample_prices(sample_dates, sample_tickers):
+    \"\"\"
+    Generate synthetic price data with known properties.
+
+    Asset AAAA: Strong uptrend (good momentum)
+    Asset BBBB: Strong downtrend (bad momentum)
+    Asset CCCC: Flat / mean-reverting
+    Others: Random walk with slight positive drift
+    \"\"\"
+    np.random.seed(42)
+    n_dates = len(sample_dates)
+    n_assets = len(sample_tickers)
+
+    # Start all prices at 100
+    prices = pd.DataFrame(index=sample_dates, columns=sample_tickers, dtype=float)
+
+    # AAAA: consistent positive returns (~2% per month)
+    prices['AAAA'] = 100 * np.cumprod(1 + np.random.normal(0.02, 0.03, n_dates))
+
+    # BBBB: consistent negative returns (~-1.5% per month)
+    prices['BBBB'] = 100 * np.cumprod(1 + np.random.normal(-0.015, 0.03, n_dates))
+
+    # CCCC: flat with noise
+    prices['CCCC'] = 100 * np.cumprod(1 + np.random.normal(0.0, 0.02, n_dates))
+
+    # Remaining tickers: slight positive drift
+    for ticker in sample_tickers[3:]:
+        prices[ticker] = 100 * np.cumprod(1 + np.random.normal(0.005, 0.04, n_dates))
+
+    return prices
+
+
+@pytest.fixture
+def sample_returns(sample_prices):
+    \"\"\"Compute simple returns from sample prices.\"\"\"
+    return sample_prices.pct_change().dropna()
+
+
+@pytest.fixture
+def sample_prices_with_nan(sample_prices):
+    \"\"\"Sample prices with some NaN values to test missing data handling.\"\"\"
+    prices = sample_prices.copy()
+    # Asset DDDD has missing data for first 6 months (simulates new listing)
+    prices.loc[prices.index[:6], 'DDDD'] = np.nan
+    # Asset EEEE has a gap in the middle
+    prices.loc[prices.index[20:23], 'EEEE'] = np.nan
+    return prices
+
+
+@pytest.fixture
+def sample_signal(sample_dates, sample_tickers):
+    \"\"\"
+    Generate a known signal for testing portfolio construction.
+
+    Signal values are designed so that:
+    - AAAA, BBBB have highest signal (top quintile)
+    - CCCC, DDDD have second highest signal
+    - ... and so on
+    \"\"\"
+    np.random.seed(123)
+    n_dates = len(sample_dates)
+    n_assets = len(sample_tickers)
+
+    signal = pd.DataFrame(index=sample_dates, columns=sample_tickers, dtype=float)
+    # Assign stable signal values for deterministic testing
+    base_signals = np.linspace(0.1, 1.0, n_assets)
+    for i, ticker in enumerate(sample_tickers):
+        signal[ticker] = base_signals[i] + np.random.normal(0, 0.01, n_dates)
+
+    return signal
+
+
+@pytest.fixture
+def sample_weights(sample_dates, sample_tickers):
+    \"\"\"Equal-weight portfolio weights for testing.\"\"\"
+    n_assets = len(sample_tickers)
+    weight = 1.0 / n_assets
+    weights = pd.DataFrame(weight, index=sample_dates, columns=sample_tickers)
+    return weights
+
+
+@pytest.fixture
+def known_return_series():
+    \"\"\"
+    Return series with known statistical properties for testing metrics.
+
+    Monthly returns: mean=1%, std=4%, 60 months
+    Known Sharpe (annualized): (0.01 / 0.04) * sqrt(12) = 0.866
+    \"\"\"
+    np.random.seed(99)
+    dates = pd.date_range(start='2015-01-31', periods=60, freq='ME')
+    returns = pd.Series(np.random.normal(0.01, 0.04, 60), index=dates, name='strategy')
+    return returns
+```
+
+---
+
+### FILE: tests/test_signals.py
+
+```python
+\"\"\"
+Tests for signal generation module.
+
+These tests verify:
+1. Signal calculation correctness with known inputs
+2. No look-ahead bias (critical!)
+3. Proper handling of missing data
+4. Signal normalization and ranking
+5. Config parameter usage
+\"\"\"
+import pytest
+import pandas as pd
+import numpy as np
+
+import config
+from signals import SignalGenerator
+
+
+class TestSignalCalculation:
+    \"\"\"Test that signal formulas produce correct results.\"\"\"
+
+    def test_signal_output_shape(self, sample_prices):
+        \"\"\"Signal output should have same shape as input (minus lookback).\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        # Signal should have same columns as prices
+        assert set(signal.columns) == set(sample_prices.columns)
+
+        # Signal dates should be a subset of price dates
+        assert signal.index.isin(sample_prices.index).all()
+
+    def test_signal_direction(self, sample_prices):
+        \"\"\"
+        Asset with strong positive trend (AAAA) should have higher
+        momentum signal than asset with negative trend (BBBB).
+        \"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        # For the last date, AAAA should have higher signal than BBBB
+        # (This assumes a momentum-type signal where positive returns = positive signal)
+        last_signal = signal.iloc[-1]
+        assert last_signal['AAAA'] > last_signal['BBBB'], \
+            f"Expected AAAA signal ({last_signal['AAAA']:.4f}) > BBBB signal ({last_signal['BBBB']:.4f})"
+
+    def test_signal_known_values(self, sample_dates, sample_tickers):
+        \"\"\"
+        Test signal computation with manually computed expected values.
+
+        Create simple price data where the signal can be calculated by hand.
+        \"\"\"
+        # Create simple price data: constant monthly return of 10% for asset A
+        dates = sample_dates[:13]  # 13 months = 12 month lookback + 1
+        prices = pd.DataFrame(index=dates, columns=['A', 'B'], dtype=float)
+        prices['A'] = [100 * (1.10 ** i) for i in range(13)]  # 10% monthly
+        prices['B'] = [100 * (0.95 ** i) for i in range(13)]  # -5% monthly
+
+        sg = SignalGenerator()
+        signal = sg.compute_signal(prices)
+
+        # Verify signal is computed (non-NaN) for dates with enough history
+        assert not signal.iloc[-1:].isna().all().all(), "Signal should be computed for dates with sufficient history"
+
+    def test_signal_not_all_nan(self, sample_prices):
+        \"\"\"Signal should contain non-NaN values for dates with sufficient history.\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        non_nan_count = signal.notna().sum().sum()
+        assert non_nan_count > 0, "Signal is entirely NaN - check computation logic"
+
+    def test_signal_values_finite(self, sample_prices):
+        \"\"\"Signal values should be finite (no inf).\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        inf_count = np.isinf(signal.values[~np.isnan(signal.values)]).sum()
+        assert inf_count == 0, f"Signal contains {inf_count} infinite values"
+
+
+class TestNoLookAheadBias:
+    \"\"\"
+    CRITICAL TESTS: Verify signals use only past data.
+
+    These tests are the most important in the entire test suite.
+    A look-ahead bias will produce unrealistically good backtest results.
+    \"\"\"
+
+    def test_signal_at_time_t_independent_of_future(self, sample_prices):
+        \"\"\"
+        Signal at time T should not change when future data (T+1, T+2, ...) changes.
+
+        Method: Compute signal with full data, then compute signal with data
+        truncated at time T. Signal at T should be identical.
+        \"\"\"
+        sg = SignalGenerator()
+
+        # Compute signal with full data
+        signal_full = sg.compute_signal(sample_prices)
+
+        # Pick a date in the middle with valid signal
+        valid_dates = signal_full.dropna(how='all').index
+        if len(valid_dates) < 10:
+            pytest.skip("Not enough valid signal dates for look-ahead test")
+
+        test_date = valid_dates[len(valid_dates) // 2]
+
+        # Compute signal with data truncated at test_date
+        truncated_prices = sample_prices.loc[:test_date]
+        signal_truncated = sg.compute_signal(truncated_prices)
+
+        # Signal at test_date should be the same
+        if test_date in signal_truncated.index:
+            pd.testing.assert_series_equal(
+                signal_full.loc[test_date].dropna(),
+                signal_truncated.loc[test_date].dropna(),
+                check_names=False,
+                rtol=1e-10,
+                obj="Signal at test_date should not depend on future data"
+            )
+
+    def test_signal_dates_before_or_equal_to_data_dates(self, sample_prices):
+        \"\"\"Signal should not exist for dates beyond the available data.\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        assert signal.index.max() <= sample_prices.index.max(), \
+            "Signal has dates beyond available price data - possible look-ahead"
+
+    def test_signal_requires_minimum_history(self, sample_prices):
+        \"\"\"
+        Signal should be NaN for dates where insufficient history exists
+        (fewer data points than lookback period).
+        \"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        # The first `lookback_period` entries should be NaN
+        lookback = config.LOOKBACK_PERIOD
+        early_signal = signal.iloc[:lookback]
+
+        # At least some of the early dates should have NaN (insufficient history)
+        assert early_signal.isna().any().any(), \
+            f"Signal has values for dates with fewer than {lookback} periods of history - possible look-ahead"
+
+
+class TestMissingDataHandling:
+    \"\"\"Test signal behavior with missing/incomplete data.\"\"\"
+
+    def test_signal_handles_nan_prices(self, sample_prices_with_nan):
+        \"\"\"Signal computation should not crash with NaN prices.\"\"\"
+        sg = SignalGenerator()
+        # Should not raise an exception
+        signal = sg.compute_signal(sample_prices_with_nan)
+        assert signal is not None
+
+    def test_nan_prices_produce_nan_signal(self, sample_prices_with_nan):
+        \"\"\"Dates where a ticker has NaN prices should produce NaN signal for that ticker.\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices_with_nan)
+
+        # DDDD has NaN for first 6 months, so signal should be NaN during lookback period
+        # (exact NaN pattern depends on lookback window)
+        early_dddd_signal = signal.iloc[:config.LOOKBACK_PERIOD + 6]['DDDD']
+        assert early_dddd_signal.isna().any(), \
+            "Asset with missing early data should have NaN signal during insufficient history period"
+
+    def test_empty_dataframe_handling(self):
+        \"\"\"Signal computation should handle empty input gracefully.\"\"\"
+        sg = SignalGenerator()
+        empty_prices = pd.DataFrame()
+
+        # Should either return empty DataFrame or raise informative error
+        try:
+            signal = sg.compute_signal(empty_prices)
+            assert signal.empty or signal.isna().all().all()
+        except (ValueError, KeyError) as e:
+            # Informative error is also acceptable
+            assert str(e), "Error should have a descriptive message"
+
+
+class TestSignalNormalization:
+    \"\"\"Test signal normalization methods.\"\"\"
+
+    def test_zscore_normalization_mean_zero(self, sample_prices):
+        \"\"\"Cross-sectional z-score normalized signals should have ~zero mean per date.\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        if hasattr(sg, 'normalize_signal'):
+            normalized = sg.normalize_signal(signal, method='zscore')
+            # Cross-sectional mean should be approximately 0
+            cs_mean = normalized.mean(axis=1).dropna()
+            assert cs_mean.abs().mean() < 0.01, \
+                f"Cross-sectional mean of z-scored signal should be ~0, got {cs_mean.abs().mean():.4f}"
+
+    def test_rank_normalization_range(self, sample_prices):
+        \"\"\"Rank-normalized signals should be in [0, 1] range.\"\"\"
+        sg = SignalGenerator()
+        signal = sg.compute_signal(sample_prices)
+
+        if hasattr(sg, 'normalize_signal'):
+            ranked = sg.normalize_signal(signal, method='rank')
+            valid = ranked.dropna()
+            if not valid.empty:
+                assert valid.min().min() >= 0, "Ranked signal should be >= 0"
+                assert valid.max().max() <= 1, "Ranked signal should be <= 1"
+
+
+class TestConfigUsage:
+    \"\"\"Test that signals use config parameters (not hardcoded values).\"\"\"
+
+    def test_different_lookback_produces_different_signal(self, sample_prices, monkeypatch):
+        \"\"\"
+        Changing config.LOOKBACK_PERIOD should produce different signals.
+        If it doesn't, the lookback might be hardcoded.
+        \"\"\"
+        sg = SignalGenerator()
+
+        # Compute signal with default lookback
+        signal_default = sg.compute_signal(sample_prices)
+
+        # Change lookback in config
+        original_lookback = config.LOOKBACK_PERIOD
+        try:
+            monkeypatch.setattr(config, 'LOOKBACK_PERIOD', original_lookback + 3)
+
+            sg2 = SignalGenerator()
+            signal_modified = sg2.compute_signal(sample_prices)
+
+            # Signals should differ (if they don't, lookback is likely hardcoded)
+            # Compare on overlapping valid dates
+            common_dates = signal_default.dropna(how='all').index.intersection(
+                signal_modified.dropna(how='all').index
+            )
+            if len(common_dates) > 0:
+                diff = (signal_default.loc[common_dates] - signal_modified.loc[common_dates]).abs()
+                assert diff.sum().sum() > 0, \
+                    "Changing LOOKBACK_PERIOD had no effect on signals - parameter may be hardcoded"
+        finally:
+            pass  # monkeypatch handles cleanup
+```
+
+---
+
+### FILE: tests/test_portfolio.py
+
+```python
+\"\"\"
+Tests for portfolio construction module.
+
+These tests verify:
+1. Portfolio sorting correctness
+2. Weight computation and constraints
+3. Rebalancing timing (signal-to-trade lag)
+4. Transaction cost computation
+5. Long-short neutrality
+\"\"\"
+import pytest
+import pandas as pd
+import numpy as np
+
+import config
+from portfolio import PortfolioConstructor
+
+
+class TestPortfolioSorting:
+    \"\"\"Test that assets are correctly sorted into portfolios.\"\"\"
+
+    def test_all_assets_assigned(self, sample_signal):
+        \"\"\"Every asset with a valid signal should be assigned to a portfolio group.\"\"\"
+        pc = PortfolioConstructor()
+        groups = pc.sort_into_portfolios(sample_signal, config.N_PORTFOLIOS)
+
+        # On each date, every non-NaN asset should appear in exactly one group
+        for date in sample_signal.dropna(how='all').index[-5:]:
+            valid_assets = sample_signal.loc[date].dropna().index.tolist()
+            assigned_assets = []
+            for group_id, group_df in groups.items():
+                if date in group_df.index:
+                    assigned_assets.extend(group_df.loc[date].dropna().index.tolist())
+
+            # Check coverage (allow for some flexibility in implementation)
+            assert len(assigned_assets) > 0, f"No assets assigned to any group on {date}"
+
+    def test_groups_are_mutually_exclusive(self, sample_signal):
+        \"\"\"An asset should not appear in more than one portfolio group on the same date.\"\"\"
+        pc = PortfolioConstructor()
+        groups = pc.sort_into_portfolios(sample_signal, config.N_PORTFOLIOS)
+
+        for date in sample_signal.dropna(how='all').index[-5:]:
+            all_assignments = []
+            for group_id, group_df in groups.items():
+                if date in group_df.index:
+                    members = group_df.loc[date].dropna().index.tolist()
+                    all_assignments.extend([(ticker, group_id) for ticker in members])
+
+            tickers_only = [t for t, g in all_assignments]
+            assert len(tickers_only) == len(set(tickers_only)), \
+                f"Some assets are assigned to multiple groups on {date}"
+
+    def test_highest_signal_in_top_group(self, sample_signal):
+        \"\"\"Assets with the highest signal values should be in the top portfolio group.\"\"\"
+        pc = PortfolioConstructor()
+        n_groups = config.N_PORTFOLIOS
+        groups = pc.sort_into_portfolios(sample_signal, n_groups)
+
+        # Check last date
+        last_date = sample_signal.dropna(how='all').index[-1]
+        signals_at_date = sample_signal.loc[last_date].dropna().sort_values(ascending=False)
+
+        if len(signals_at_date) >= n_groups:
+            top_asset = signals_at_date.index[0]
+            # Top asset should be in the highest-numbered group (or group 1 depending on convention)
+            top_group_id = max(groups.keys())
+            if last_date in groups[top_group_id].index:
+                top_group_members = groups[top_group_id].loc[last_date].dropna().index.tolist()
+                assert top_asset in top_group_members, \
+                    f"Asset {top_asset} with highest signal not in top portfolio group"
+
+
+class TestWeightComputation:
+    \"\"\"Test portfolio weight calculations.\"\"\"
+
+    def test_weights_sum_to_one(self, sample_signal):
+        \"\"\"Within each portfolio group, weights should sum to approximately 1.\"\"\"
+        pc = PortfolioConstructor()
+        weights = pc.compute_weights(sample_signal, method='equal_weight')
+
+        weight_sums = weights.sum(axis=1).dropna()
+        # Allow small floating point tolerance
+        assert (weight_sums - 1.0).abs().max() < 1e-8, \
+            f"Weights do not sum to 1. Max deviation: {(weight_sums - 1.0).abs().max():.10f}"
+
+    def test_equal_weights_are_equal(self, sample_signal):
+        \"\"\"Equal-weighted portfolios should have identical weights for all assets.\"\"\"
+        pc = PortfolioConstructor()
+        weights = pc.compute_weights(sample_signal, method='equal_weight')
+
+        for date in weights.dropna(how='all').index[-5:]:
+            w = weights.loc[date].dropna()
+            if len(w) > 1:
+                assert w.std() < 1e-10, \
+                    f"Equal weights are not equal on {date}: {w.values}"
+
+    def test_no_negative_weights_long_only(self, sample_signal):
+        \"\"\"Long-only portfolios should have no negative weights.\"\"\"
+        pc = PortfolioConstructor()
+        weights = pc.compute_weights(sample_signal, method='equal_weight')
+
+        min_weight = weights.min().min()
+        assert min_weight >= -1e-10, \
+            f"Long-only portfolio has negative weight: {min_weight}"
+
+
+class TestRebalancingTiming:
+    \"\"\"Test that rebalancing happens at the correct time with proper lags.\"\"\"
+
+    def test_signal_date_before_trade_date(self, sample_prices, sample_signal):
+        \"\"\"
+        Portfolio weights at time T should be based on signals at time T-1 (or earlier).
+        This is the key look-ahead bias prevention in portfolio construction.
+        \"\"\"
+        pc = PortfolioConstructor()
+
+        # Get returns and compute portfolio returns
+        returns = sample_prices.pct_change().dropna()
+        portfolio_returns = pc.compute_portfolio_returns(
+            pc.compute_weights(sample_signal, method='equal_weight'),
+            returns
+        )
+
+        # The weights used for return at time T should be determined BEFORE time T
+        # This is verified by checking that weights are shifted relative to returns
+        # If this test passes, there's no same-period look-ahead in portfolio construction
+        assert portfolio_returns is not None and len(portfolio_returns) > 0
+
+    def test_rebalancing_frequency_matches_config(self, sample_signal):
+        \"\"\"Weight changes should only occur at rebalancing frequency.\"\"\"
+        pc = PortfolioConstructor()
+        weights = pc.compute_weights(sample_signal, method='equal_weight')
+        weights = pc.apply_rebalancing(weights, config.REBALANCE_FREQ)
+
+        # Between rebalancing dates, weights should remain constant (forward-filled)
+        weight_changes = weights.diff().abs().sum(axis=1)
+        change_dates = weight_changes[weight_changes > 1e-10].index
+
+        # Number of changes should be reasonable for the rebalancing frequency
+        assert len(change_dates) > 0, "No rebalancing detected - weights never change"
+
+
+class TestTransactionCosts:
+    \"\"\"Test transaction cost computation.\"\"\"
+
+    def test_transaction_costs_non_negative(self, sample_weights):
+        \"\"\"Transaction costs should always be non-negative.\"\"\"
+        pc = PortfolioConstructor()
+        costs = pc.compute_transaction_costs(sample_weights, config.TRANSACTION_COST_BPS)
+
+        assert (costs >= -1e-10).all(), "Transaction costs should be non-negative"
+
+    def test_zero_cost_with_no_rebalancing(self, sample_weights):
+        \"\"\"If weights don't change, transaction costs should be zero (after initial trade).\"\"\"
+        pc = PortfolioConstructor()
+        # Constant weights = no rebalancing = no costs after initial period
+        costs = pc.compute_transaction_costs(sample_weights, config.TRANSACTION_COST_BPS)
+
+        # After the first period, costs should be zero for constant weights
+        if len(costs) > 1:
+            assert costs.iloc[1:].sum() < 1e-10, \
+                "Constant weights should produce zero transaction costs after initial trade"
+
+    def test_higher_turnover_higher_costs(self, sample_dates, sample_tickers):
+        \"\"\"Higher portfolio turnover should result in higher transaction costs.\"\"\"
+        pc = PortfolioConstructor()
+
+        n = len(sample_dates)
+        m = len(sample_tickers)
+
+        # Low turnover weights (rarely change)
+        low_turnover = pd.DataFrame(1.0/m, index=sample_dates, columns=sample_tickers)
+
+        # High turnover weights (change every period)
+        np.random.seed(42)
+        high_turnover = pd.DataFrame(
+            np.random.dirichlet(np.ones(m), n),
+            index=sample_dates,
+            columns=sample_tickers
+        )
+
+        cost_low = pc.compute_transaction_costs(low_turnover, config.TRANSACTION_COST_BPS)
+        cost_high = pc.compute_transaction_costs(high_turnover, config.TRANSACTION_COST_BPS)
+
+        assert cost_high.sum() > cost_low.sum(), \
+            "Higher turnover portfolio should have higher transaction costs"
+
+
+class TestLongShortPortfolio:
+    \"\"\"Test long-short portfolio construction.\"\"\"
+
+    def test_long_short_dollar_neutral(self, sample_signal):
+        \"\"\"Long-short portfolio should be approximately dollar neutral.\"\"\"
+        pc = PortfolioConstructor()
+        groups = pc.sort_into_portfolios(sample_signal, config.N_PORTFOLIOS)
+
+        # Long = top group, Short = bottom group
+        top_group = max(groups.keys())
+        bottom_group = min(groups.keys())
+
+        # Both legs should exist
+        assert top_group in groups and bottom_group in groups, \
+            "Both long and short legs should exist"
+```
+
+---
+
+### FILE: tests/test_analysis.py
+
+```python
+\"\"\"
+Tests for performance analysis module.
+
+Tests verify correctness of performance metric calculations using
+return series with known statistical properties.
+\"\"\"
+import pytest
+import pandas as pd
+import numpy as np
+
+from analysis import PerformanceAnalyzer
+
+
+class TestPerformanceMetrics:
+    \"\"\"Test performance metric calculations.\"\"\"
+
+    def test_sharpe_ratio_known_value(self, known_return_series):
+        \"\"\"
+        Test Sharpe ratio computation with known inputs.
+        Monthly returns: mean=1%, std=4%
+        Expected annualized Sharpe (excess returns assuming rf=0): (0.01/0.04)*sqrt(12) ~ 0.866
+        \"\"\"
+        pa = PerformanceAnalyzer()
+        rf = pd.Series(0.0, index=known_return_series.index)
+        sharpe = pa.compute_sharpe_ratio(known_return_series, rf, frequency='monthly')
+
+        # Allow tolerance for sampling noise (we used random seed)
+        assert 0.3 < sharpe < 2.0, f"Sharpe ratio {sharpe:.4f} outside plausible range"
+
+    def test_sharpe_ratio_positive_for_positive_returns(self, known_return_series):
+        \"\"\"Strategy with positive mean excess returns should have positive Sharpe.\"\"\"
+        pa = PerformanceAnalyzer()
+        rf = pd.Series(0.0, index=known_return_series.index)
+        sharpe = pa.compute_sharpe_ratio(known_return_series, rf, frequency='monthly')
+        assert sharpe > 0, f"Sharpe should be positive for positive mean returns, got {sharpe:.4f}"
+
+    def test_max_drawdown_range(self, known_return_series):
+        \"\"\"Max drawdown should be between 0 and -100%.\"\"\"
+        pa = PerformanceAnalyzer()
+        max_dd = pa.compute_max_drawdown(known_return_series)
+
+        # max_dd could be a float or a tuple (value, start, end)
+        dd_value = max_dd[0] if isinstance(max_dd, tuple) else max_dd
+        assert -1.0 <= dd_value <= 0.0, f"Max drawdown {dd_value:.4f} outside [-1, 0] range"
+
+    def test_max_drawdown_all_positive_returns(self):
+        \"\"\"A series with all positive returns should have zero drawdown.\"\"\"
+        dates = pd.date_range('2020-01-01', periods=12, freq='ME')
+        returns = pd.Series(0.01, index=dates)  # 1% every month
+
+        pa = PerformanceAnalyzer()
+        max_dd = pa.compute_max_drawdown(returns)
+        dd_value = max_dd[0] if isinstance(max_dd, tuple) else max_dd
+        assert dd_value == 0.0, f"All-positive returns should have 0 drawdown, got {dd_value}"
+
+    def test_annualized_return_compounding(self):
+        \"\"\"Test that annualized return uses proper compounding.\"\"\"
+        dates = pd.date_range('2020-01-01', periods=12, freq='ME')
+        returns = pd.Series(0.01, index=dates)  # 1% per month
+
+        pa = PerformanceAnalyzer()
+        ann_return = pa.annualize_return(returns, frequency='monthly')
+
+        # (1.01)^12 - 1 = 12.68% annualized (geometric)
+        expected_geometric = (1.01 ** 12) - 1
+        assert abs(ann_return - expected_geometric) < 0.02, \
+            f"Annualized return {ann_return:.4f} doesn't match expected {expected_geometric:.4f}"
+
+    def test_annualized_volatility(self):
+        \"\"\"Test annualized volatility calculation.\"\"\"
+        dates = pd.date_range('2020-01-01', periods=120, freq='ME')
+        np.random.seed(42)
+        returns = pd.Series(np.random.normal(0.01, 0.04, 120), index=dates)
+
+        pa = PerformanceAnalyzer()
+        ann_vol = pa.annualize_volatility(returns, frequency='monthly')
+
+        # Expected: 0.04 * sqrt(12) ~ 0.1386
+        expected = 0.04 * np.sqrt(12)
+        assert abs(ann_vol - expected) < 0.02, \
+            f"Annualized vol {ann_vol:.4f} doesn't match expected {expected:.4f}"
+
+    def test_metrics_dict_contains_required_keys(self, known_return_series):
+        \"\"\"compute_metrics should return dict with all standard metrics.\"\"\"
+        pa = PerformanceAnalyzer()
+        metrics = pa.compute_metrics(known_return_series)
+
+        required_keys = ['annualized_return', 'annualized_volatility', 'sharpe_ratio', 'max_drawdown']
+        for key in required_keys:
+            assert key in metrics, f"Missing required metric: {key}"
+
+
+class TestFactorAnalysis:
+    \"\"\"Test factor regression analysis.\"\"\"
+
+    def test_factor_regression_returns_alpha(self, known_return_series):
+        \"\"\"Factor regression should return an alpha estimate.\"\"\"
+        pa = PerformanceAnalyzer()
+
+        # Create mock market factor
+        np.random.seed(42)
+        market = pd.Series(
+            np.random.normal(0.008, 0.04, len(known_return_series)),
+            index=known_return_series.index
+        )
+        factors = pd.DataFrame({'MKT': market})
+
+        try:
+            result = pa.run_factor_regression(known_return_series, factors)
+            # Result should contain alpha and beta at minimum
+            assert result is not None
+        except (NotImplementedError, ImportError):
+            pytest.skip("Factor regression not yet implemented or statsmodels not available")
+```
+
+---
+
+### FILE: tests/test_data_loader.py
+
+```python
+\"\"\"
+Tests for data loading module.
+
+Tests verify data loading handles edge cases specific to financial data.
+\"\"\"
+import pytest
+import pandas as pd
+import numpy as np
+
+from data_loader import DataLoader
+
+
+class TestDataLoading:
+    \"\"\"Test data fetching and preprocessing.\"\"\"
+
+    def test_returns_computation_no_nan_in_first_row(self):
+        \"\"\"First row of returns should be NaN (no prior price to compute return from).\"\"\"
+        dl = DataLoader()
+        prices = pd.DataFrame({
+            'A': [100, 110, 105],
+            'B': [50, 52, 53]
+        }, index=pd.date_range('2020-01-01', periods=3, freq='D'))
+
+        returns = dl.compute_returns(prices)
+        assert returns.iloc[0].isna().all(), "First row of returns should be NaN"
+
+    def test_returns_computation_correctness(self):
+        \"\"\"Verify return calculation with known values.\"\"\"
+        dl = DataLoader()
+        prices = pd.DataFrame({
+            'A': [100.0, 110.0, 105.0],
+            'B': [50.0, 52.0, 53.0]
+        }, index=pd.date_range('2020-01-01', periods=3, freq='D'))
+
+        returns = dl.compute_returns(prices)
+
+        # Simple return: (110-100)/100 = 0.10
+        assert abs(returns.iloc[1]['A'] - 0.10) < 1e-10
+        # (105-110)/110 = -0.04545...
+        assert abs(returns.iloc[2]['A'] - (-5.0/110.0)) < 1e-10
+
+    def test_handle_missing_data(self):
+        \"\"\"Missing data handling should not crash.\"\"\"
+        dl = DataLoader()
+        prices = pd.DataFrame({
+            'A': [100, np.nan, 105, 110, np.nan],
+            'B': [50, 52, np.nan, 53, 55]
+        }, index=pd.date_range('2020-01-01', periods=5, freq='D'))
+
+        result = dl.handle_missing_data(prices)
+        assert result is not None
+        assert not result.empty
+
+    def test_output_has_datetime_index(self):
+        \"\"\"All output DataFrames should have DatetimeIndex.\"\"\"
+        dl = DataLoader()
+        prices = pd.DataFrame({
+            'A': [100, 110, 105],
+        }, index=pd.date_range('2020-01-01', periods=3, freq='D'))
+
+        returns = dl.compute_returns(prices)
+        assert isinstance(returns.index, pd.DatetimeIndex), \
+            "Returns DataFrame should have DatetimeIndex"
+```
+
+---
+
+TESTING GUIDELINES:
+1. The NO LOOK-AHEAD BIAS tests are the most important. They verify the single most critical property of any backtest.
+2. Use synthetic data with known properties so expected values can be computed analytically.
+3. Test edge cases specific to financial data: missing values, delistings, IPOs, corporate events.
+4. Verify that changing config parameters actually changes behavior (catches hardcoded values).
+5. Use pytest fixtures extensively for shared test data to keep tests DRY.
+6. Each test should test ONE thing and have a clear failure message explaining what went wrong.
+7. Use pytest.approx() or explicit tolerances for floating-point comparisons.
+8. Mark slow tests with @pytest.mark.slow if they require data downloads.

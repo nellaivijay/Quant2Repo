@@ -1,0 +1,462 @@
+You are a DevOps engineer specializing in quantitative finance infrastructure. Your task is to generate all DevOps and infrastructure files for a backtest repository, making it easy to install, run, test, and deploy the backtest in any environment.
+
+The generated infrastructure should support:
+1. Local development (pip install + run)
+2. Docker-based execution (reproducible environment)
+3. CI/CD pipeline (automated testing on push)
+4. One-command backtest execution
+
+=== FILE LIST ===
+{{file_list}}
+=== END FILE LIST ===
+
+=== DEPENDENCIES ===
+{{dependencies}}
+=== END DEPENDENCIES ===
+
+=== STRATEGY NAME ===
+{{strategy_name}}
+=== END STRATEGY NAME ===
+
+Generate the following infrastructure files. Return each file as a clearly labeled section:
+
+---
+
+### FILE: Dockerfile
+
+```dockerfile
+# Dockerfile for {{strategy_name}} backtest
+# Provides a reproducible environment with all dependencies pre-installed
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies (needed for some Python packages)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for Docker layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY . .
+
+# Create output directory for results
+RUN mkdir -p output
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Default command: run the backtest
+CMD ["python", "main.py", "--output-dir", "output"]
+```
+
+---
+
+### FILE: docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  backtest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{strategy_name}}_backtest
+    volumes:
+      # Mount output directory to access results on host
+      - ./output:/app/output
+      # Mount data cache to persist downloaded data between runs
+      - ./data/cache:/app/data/cache
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python main.py --output-dir output
+
+  # Quick run with limited date range for testing
+  backtest-quick:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{strategy_name}}_quick
+    volumes:
+      - ./output:/app/output
+      - ./data/cache:/app/data/cache
+    command: python main.py --quick-run --output-dir output
+
+  # Run tests
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{strategy_name}}_test
+    command: python -m pytest tests/ -v --tb=short
+
+  # Generate report only (assumes backtest results exist)
+  report:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{strategy_name}}_report
+    volumes:
+      - ./output:/app/output
+    command: python main.py --report-only --output-dir output
+```
+
+---
+
+### FILE: Makefile
+
+```makefile
+# Makefile for {{strategy_name}} backtest
+# Usage: make <target>
+#
+# Targets:
+#   install     - Install Python dependencies
+#   backtest    - Run the full backtest
+#   quick       - Run a quick backtest (limited date range)
+#   test        - Run all tests
+#   lint        - Run code linting
+#   report      - Generate performance report
+#   clean       - Clean output files and caches
+#   docker-build - Build Docker image
+#   docker-run  - Run backtest in Docker
+#   docker-test - Run tests in Docker
+#   help        - Show this help message
+
+.PHONY: install backtest quick test lint report clean docker-build docker-run docker-test help
+
+# Default Python interpreter
+PYTHON ?= python3
+PIP ?= pip3
+OUTPUT_DIR ?= output
+
+help: ## Show this help message
+	@echo "Available targets:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+install: ## Install Python dependencies
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
+	@echo "Dependencies installed successfully."
+
+backtest: ## Run the full backtest
+	@mkdir -p $(OUTPUT_DIR)
+	$(PYTHON) main.py --output-dir $(OUTPUT_DIR)
+	@echo "Backtest complete. Results in $(OUTPUT_DIR)/"
+
+quick: ## Run a quick backtest (limited date range for testing)
+	@mkdir -p $(OUTPUT_DIR)
+	$(PYTHON) main.py --quick-run --output-dir $(OUTPUT_DIR)
+	@echo "Quick backtest complete. Results in $(OUTPUT_DIR)/"
+
+test: ## Run all tests with pytest
+	$(PYTHON) -m pytest tests/ -v --tb=short
+
+test-coverage: ## Run tests with coverage report
+	$(PYTHON) -m pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-report=html:$(OUTPUT_DIR)/coverage
+
+lint: ## Run code linting (flake8 + mypy)
+	$(PYTHON) -m flake8 *.py --max-line-length=120 --ignore=E501,W503
+	$(PYTHON) -m mypy *.py --ignore-missing-imports || true
+
+report: ## Generate performance report from existing backtest results
+	$(PYTHON) main.py --report-only --output-dir $(OUTPUT_DIR)
+	@echo "Report generated in $(OUTPUT_DIR)/"
+
+clean: ## Clean output files, caches, and temporary files
+	rm -rf $(OUTPUT_DIR)/*
+	rm -rf __pycache__ tests/__pycache__
+	rm -rf .pytest_cache .mypy_cache
+	rm -rf *.egg-info dist build
+	find . -name "*.pyc" -delete
+	find . -name ".DS_Store" -delete
+	@echo "Cleaned up successfully."
+
+clean-data: ## Clean cached data (will re-download on next run)
+	rm -rf data/cache/*
+	@echo "Data cache cleaned."
+
+docker-build: ## Build Docker image
+	docker build -t {{strategy_name}}_backtest .
+
+docker-run: ## Run backtest in Docker
+	docker-compose up backtest
+
+docker-test: ## Run tests in Docker
+	docker-compose up test
+
+docker-quick: ## Run quick backtest in Docker
+	docker-compose up backtest-quick
+
+all: install test backtest report ## Run full pipeline: install, test, backtest, report
+```
+
+---
+
+### FILE: .github/workflows/ci.yml
+
+```yaml
+name: Backtest CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov flake8 mypy
+
+      - name: Lint with flake8
+        run: |
+          # Stop on syntax errors or undefined names
+          flake8 *.py --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Warnings (non-blocking)
+          flake8 *.py --count --max-line-length=120 --ignore=E501,W503 --statistics || true
+
+      - name: Type check with mypy
+        run: |
+          mypy *.py --ignore-missing-imports || true
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v --tb=short --cov=. --cov-report=xml
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  quick-backtest:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Cache downloaded data
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: ${{ runner.os }}-data-${{ hashFiles('config.py') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run quick backtest
+        run: |
+          mkdir -p output
+          python main.py --quick-run --output-dir output
+        timeout-minutes: 10
+
+      - name: Upload backtest results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: output/
+          retention-days: 30
+```
+
+---
+
+### FILE: setup.py
+
+```python
+"""
+Setup script for {{strategy_name}} backtest package.
+"""
+from setuptools import setup, find_packages
+
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
+with open("requirements.txt", "r", encoding="utf-8") as fh:
+    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+
+setup(
+    name="{{strategy_name}}",
+    version="0.1.0",
+    author="Quant2Repo",
+    description="Backtest implementation of {{strategy_name}} strategy",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    packages=find_packages(),
+    python_requires=">=3.10",
+    install_requires=requirements,
+    extras_require={
+        "dev": [
+            "pytest>=7.0.0",
+            "pytest-cov>=4.0.0",
+            "flake8>=6.0.0",
+            "mypy>=1.0.0",
+            "black>=23.0.0",
+            "isort>=5.12.0",
+        ],
+        "report": [
+            "pyfolio>=0.9.2",
+            "empyrical>=0.5.5",
+        ],
+    },
+    entry_points={
+        "console_scripts": [
+            "run-backtest={{strategy_name}}.main:main",
+        ],
+    },
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Financial and Insurance Industry",
+        "Topic :: Office/Business :: Financial :: Investment",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
+)
+```
+
+---
+
+### FILE: .gitignore
+
+```
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Output and data
+output/
+data/cache/
+*.csv
+*.parquet
+*.pkl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+```
+
+---
+
+### FILE: .dockerignore
+
+```
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.egg-info
+dist
+build
+venv
+.venv
+
+# IDE
+.idea
+.vscode
+
+# Output (will be mounted as volume)
+output/
+
+# Testing artifacts
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# OS
+.DS_Store
+```
+
+---
+
+DEVOPS GUIDELINES:
+1. The Dockerfile should produce a REPRODUCIBLE environment. Pin Python version and use requirements.txt for dependency versions.
+2. The Makefile should be the primary interface for developers. `make help` should explain all targets.
+3. CI should run tests AND a quick backtest to catch runtime errors that unit tests might miss.
+4. Docker volumes should be used for output (results) and data (cached downloads) to persist between runs.
+5. The setup.py should support both pip install for development and console_scripts entry point for CLI usage.
+6. All generated files should use the strategy name for container/package naming.

@@ -1,0 +1,312 @@
+You are a quantitative finance expert specializing in backtest methodology and bias detection. Your task is to perform a deep audit of a generated backtest implementation, focusing specifically on common backtesting pitfalls that can produce misleading results.
+
+Academic backtests often report inflated returns due to subtle biases. Your job is to identify every potential source of bias in this implementation, even if the code otherwise looks correct.
+
+=== GENERATED CODE FILES ===
+{{generated_files}}
+=== END GENERATED CODE FILES ===
+
+=== STRATEGY EXTRACTION ===
+{{strategy_extraction}}
+=== END STRATEGY EXTRACTION ===
+
+=== BACKTEST RESULTS (if available) ===
+{{backtest_results}}
+=== END BACKTEST RESULTS ===
+
+Perform a comprehensive backtest bias audit and return a JSON report:
+
+{
+  "audit_summary": {
+    "bias_risk_score": 35,
+    "risk_level": "low | moderate | high | critical",
+    "verdict": "One-sentence overall assessment of backtest reliability",
+    "total_issues_found": 5,
+    "most_critical_issue": "Brief description of the most important finding"
+  },
+
+  "survivorship_bias": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Detailed assessment of survivorship bias risk",
+    "checks": [
+      {
+        "check": "Does the universe include delisted stocks?",
+        "finding": "Description of what the code does",
+        "risk": "What bias this introduces",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Is the universe defined using current index constituents applied historically?",
+        "finding": "Description",
+        "risk": "Using today's S&P 500 members for a 2000-2020 backtest introduces survivorship bias",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Are failed companies, bankruptcies, and acquisitions included in historical universe?",
+        "finding": "Description",
+        "risk": "Excluding failures inflates returns by 1-2% annually for small caps",
+        "severity": "critical | major | minor | none"
+      }
+    ],
+    "recommendations": ["How to mitigate survivorship bias in this implementation"]
+  },
+
+  "lookahead_bias": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Detailed assessment of look-ahead bias risk",
+    "checks": [
+      {
+        "check": "Signal construction uses only past data",
+        "location": "File and function",
+        "finding": "Whether .shift() or equivalent is properly used",
+        "risk": "Using future information inflates returns dramatically",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Fundamental data respects reporting lag",
+        "location": "File and function",
+        "finding": "Whether point-in-time data handling is correct",
+        "risk": "Using Q4 earnings before they are publicly filed",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Universe selection does not use future information",
+        "location": "File and function",
+        "finding": "Whether universe membership is determined using data available at the time",
+        "risk": "Selecting stocks that will later meet criteria",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Split/dividend adjustments are applied correctly",
+        "location": "File and function",
+        "finding": "Whether adjustment factors known only after the event are applied retroactively in a way that affects trading signals",
+        "risk": "Using future adjustment factors in signal computation",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "No future information in signal normalization",
+        "location": "File and function",
+        "finding": "Whether z-scores or rankings use the full sample instead of expanding window",
+        "risk": "Normalizing signals using future data improves signal quality artificially",
+        "severity": "critical | major | minor | none"
+      }
+    ],
+    "recommendations": ["How to eliminate any look-ahead bias found"]
+  },
+
+  "point_in_time_data": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Whether the implementation correctly handles point-in-time data availability",
+    "checks": [
+      {
+        "data_type": "Fundamental data (earnings, book value, etc.)",
+        "finding": "Whether reporting lags are respected",
+        "paper_assumption": "What the paper assumes about data availability timing",
+        "implementation": "How the code handles this",
+        "correct": true
+      },
+      {
+        "data_type": "Index membership",
+        "finding": "Whether historical index constituents are used vs. current constituents",
+        "implementation": "How the code determines universe membership",
+        "correct": true
+      },
+      {
+        "data_type": "Price data",
+        "finding": "Whether closing prices are used as available (end of day) vs. intraday assumptions",
+        "implementation": "How price data timing is handled",
+        "correct": true
+      }
+    ]
+  },
+
+  "rebalancing_timing": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Whether rebalancing timing is realistic and matches the paper",
+    "checks": [
+      {
+        "check": "Signal-to-trade gap",
+        "finding": "Is there an appropriate gap between signal computation and trade execution?",
+        "paper_specification": "What the paper specifies",
+        "implementation": "What the code does",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Trade execution price",
+        "finding": "Does the code assume trades execute at the close price used to compute signals (same-day execution) or next-day?",
+        "risk": "Same-day execution at close price is unrealistic and introduces implicit look-ahead",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Rebalancing frequency matches paper",
+        "finding": "Whether the rebalancing frequency in code matches the paper",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "End-of-period vs start-of-period convention",
+        "finding": "Whether the code is consistent about when rebalancing happens within a period",
+        "severity": "critical | major | minor | none"
+      }
+    ]
+  },
+
+  "transaction_cost_assumptions": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Whether transaction cost assumptions are realistic",
+    "checks": [
+      {
+        "check": "Cost level is reasonable for the strategy's time period and asset class",
+        "finding": "What costs are assumed",
+        "historical_context": "Whether costs are appropriate for the era (e.g., pre-2000 vs post-2000 equity trading)",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Market impact is considered for capacity-constrained strategies",
+        "finding": "Whether market impact is modeled",
+        "risk": "Small-cap strategies without market impact modeling overstate capacity",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Shorting costs are included for short positions",
+        "finding": "Whether borrowing costs are modeled for short leg",
+        "risk": "Ignoring borrowing costs can overstate long-short strategy returns by 1-3% annually",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Turnover-implied costs are reported",
+        "finding": "Whether the code reports turnover and turnover-implied transaction costs",
+        "severity": "critical | major | minor | none"
+      }
+    ]
+  },
+
+  "data_snooping_overfitting": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Whether the implementation introduces data snooping beyond what the paper reports",
+    "checks": [
+      {
+        "check": "Parameters match the paper (not optimized on the test sample)",
+        "finding": "Whether all parameters come from the paper vs. were optimized",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "No post-hoc adjustments to signal construction",
+        "finding": "Whether any modifications were made beyond what the paper describes",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Multiple testing adjustment",
+        "finding": "If the paper tests many variants, whether any multiple testing correction is applied",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Out-of-sample validation",
+        "finding": "Whether the backtest includes an out-of-sample period beyond the paper's sample",
+        "severity": "critical | major | minor | none"
+      }
+    ]
+  },
+
+  "sample_period_sensitivity": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Whether results are robust across different time periods",
+    "checks": [
+      {
+        "check": "Strategy performance in different market regimes",
+        "finding": "Whether the code tests in bull/bear/sideways markets",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Strategy performance before and after publication date",
+        "finding": "Whether out-of-sample performance is tested",
+        "risk": "Many anomalies weaken significantly after publication",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Dependence on specific extreme events",
+        "finding": "Whether results are driven by a few extreme periods (2008 crisis, COVID, etc.)",
+        "severity": "critical | major | minor | none"
+      }
+    ]
+  },
+
+  "capacity_constraints": {
+    "risk_level": "low | moderate | high",
+    "assessment": "Whether the strategy's capacity limitations are addressed",
+    "checks": [
+      {
+        "check": "Strategy trades liquid instruments",
+        "finding": "Whether the universe includes illiquid names that cannot be traded at scale",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Position sizes are realistic",
+        "finding": "Whether individual position sizes are reasonable given typical daily volumes",
+        "severity": "critical | major | minor | none"
+      },
+      {
+        "check": "Market impact modeled for concentrated positions",
+        "finding": "Whether market impact is considered for large positions",
+        "severity": "critical | major | minor | none"
+      }
+    ]
+  },
+
+  "issues": [
+    {
+      "id": 1,
+      "bias_type": "survivorship | lookahead | point_in_time | rebalancing | transaction_costs | data_snooping | sample_sensitivity | capacity",
+      "severity": "critical | major | minor",
+      "description": "Detailed description of the issue",
+      "location": "File and function/line where the issue manifests",
+      "impact_estimate": "Estimated impact on backtest results (e.g., 'could inflate annual returns by 1-2%')",
+      "fix_description": "How to fix the issue",
+      "paper_addresses_this": "Whether the original paper discusses or addresses this concern"
+    }
+  ],
+
+  "recommendations": {
+    "must_fix": [
+      "Issues that must be fixed before results can be trusted"
+    ],
+    "should_fix": [
+      "Issues that would improve backtest reliability"
+    ],
+    "best_practices": [
+      "General recommendations for improving the backtest"
+    ],
+    "additional_tests": [
+      "Additional robustness tests that should be run"
+    ]
+  },
+
+  "reality_check": {
+    "sharpe_ratio_plausibility": {
+      "reported": "Sharpe from backtest",
+      "paper_reported": "Sharpe from paper",
+      "realistic_range": "What a realistic Sharpe would be after accounting for all biases",
+      "assessment": "Whether the backtest Sharpe is plausible"
+    },
+    "turnover_plausibility": {
+      "reported": "Turnover from backtest",
+      "expected_range": "Expected turnover for this type of strategy and rebalancing frequency",
+      "assessment": "Whether turnover is plausible"
+    },
+    "return_attribution": {
+      "assessment": "Whether returns can be explained by known risk factors or represent genuine alpha",
+      "factor_exposure_concerns": "Any factor exposure that might explain the returns"
+    }
+  }
+}
+
+AUDIT GUIDELINES:
+1. ASSUME NOTHING IS CORRECT. Verify every aspect of the implementation independently.
+2. The most dangerous biases are subtle ones: using close prices to compute signals and then assuming execution at the same close price, using adjusted prices that were adjusted using future information, using today's index constituents for historical analysis.
+3. Quantify the potential impact of each bias whenever possible (e.g., "survivorship bias in small-cap universe typically inflates returns by 1-3% annually").
+4. Check the DATA as much as the CODE. Even correct code produces wrong results with biased data.
+5. Be especially skeptical of Sharpe ratios above 2.0 for long-only equity strategies or above 1.5 for long-short strategies. These often indicate a bias.
+6. Scoring: bias_risk_score of 0 = no bias risk (impossible in practice), 100 = heavily biased and untrustworthy.
+   - 0-25: Low bias risk, results likely reliable
+   - 26-50: Moderate bias risk, results directionally correct but magnitudes may be overstated
+   - 51-75: High bias risk, significant concerns about result validity
+   - 76-100: Critical bias risk, results should not be trusted

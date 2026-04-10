@@ -1,0 +1,296 @@
+You are a senior software architect specializing in quantitative finance backtesting systems. Your task is to design the complete file structure and architecture for a Python backtesting repository that implements a trading strategy from an academic paper.
+
+The architecture must be modular, testable, and follow best practices for financial software engineering. Every design decision should prioritize correctness of the backtest over convenience.
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== STRATEGY EXTRACTION ===
+{{strategy_extraction}}
+=== END STRATEGY EXTRACTION ===
+
+=== OVERALL PLAN ===
+{{overall_plan}}
+=== END OVERALL PLAN ===
+
+Produce a detailed JSON architecture specification:
+
+{
+  "project_name": "Descriptive project name (e.g., 'momentum_backtest', 'value_factor_replication')",
+  "project_description": "One-paragraph description of what this repo implements",
+
+  "file_list": [
+    {
+      "path": "config.py",
+      "description": "Central configuration: all strategy hyperparameters, universe definitions, date ranges, data source settings, transaction cost assumptions. Every tunable parameter from the paper lives here.",
+      "module": "configuration",
+      "estimated_loc": 80,
+      "dependencies": [],
+      "key_contents": [
+        "STRATEGY_NAME: str",
+        "LOOKBACK_PERIOD: int (months/days)",
+        "REBALANCE_FREQ: str",
+        "UNIVERSE: list of tickers or index name",
+        "START_DATE / END_DATE",
+        "TRANSACTION_COST_BPS: float",
+        "N_PORTFOLIOS: int (quintiles, deciles, etc.)",
+        "BENCHMARK: str"
+      ]
+    },
+    {
+      "path": "data_loader.py",
+      "description": "Data acquisition, cleaning, and preprocessing. Fetches price/fundamental data, handles missing values, applies universe filters, computes returns. All data operations that feed into signal generation.",
+      "module": "data",
+      "estimated_loc": 200,
+      "dependencies": ["config.py"],
+      "key_contents": [
+        "class DataLoader:",
+        "  fetch_prices() -> pd.DataFrame",
+        "  fetch_fundamentals() -> pd.DataFrame (if needed)",
+        "  compute_returns(prices, method='log'|'arithmetic') -> pd.DataFrame",
+        "  apply_universe_filters(data) -> pd.DataFrame",
+        "  align_frequencies(data_dict) -> dict",
+        "  get_risk_free_rate() -> pd.Series",
+        "  handle_missing_data(data) -> pd.DataFrame",
+        "  get_market_caps() -> pd.DataFrame (if needed for value-weighting)"
+      ]
+    },
+    {
+      "path": "signals.py",
+      "description": "Signal generation implementing the exact methodology from the paper. Each signal function takes clean data and returns a signal DataFrame with the same index (dates) and columns (assets). Signals must use ONLY past data - no look-ahead bias.",
+      "module": "signals",
+      "estimated_loc": 250,
+      "dependencies": ["config.py", "data_loader.py"],
+      "key_contents": [
+        "class SignalGenerator:",
+        "  compute_signal(data) -> pd.DataFrame  # Main signal",
+        "  normalize_signal(signal, method) -> pd.DataFrame",
+        "  rank_signal(signal) -> pd.DataFrame  # Cross-sectional rank",
+        "  combine_signals(signals, weights) -> pd.DataFrame  # If multiple signals",
+        "  winsorize_signal(signal, lower, upper) -> pd.DataFrame",
+        "  Helper functions for specific calculations from the paper"
+      ]
+    },
+    {
+      "path": "portfolio.py",
+      "description": "Portfolio construction, rebalancing, and return computation. Takes signals and forms portfolios (long-short, quintiles, etc.), applies weighting scheme, handles rebalancing timing with proper lags, computes portfolio returns net of transaction costs.",
+      "module": "portfolio",
+      "estimated_loc": 300,
+      "dependencies": ["config.py", "signals.py"],
+      "key_contents": [
+        "class PortfolioConstructor:",
+        "  sort_into_portfolios(signal, n_groups) -> dict[int, pd.DataFrame]",
+        "  compute_weights(signal, method) -> pd.DataFrame",
+        "  apply_rebalancing(weights, frequency) -> pd.DataFrame",
+        "  compute_portfolio_returns(weights, returns) -> pd.DataFrame",
+        "  compute_long_short_returns(long_weights, short_weights, returns) -> pd.Series",
+        "  compute_transaction_costs(weight_changes, cost_bps) -> pd.Series",
+        "  compute_turnover(weights) -> pd.Series",
+        "  get_holdings_history() -> pd.DataFrame"
+      ]
+    },
+    {
+      "path": "analysis.py",
+      "description": "Performance analytics, factor regressions, and statistical tests. Computes all standard performance metrics, runs factor model regressions, performs sub-period analysis, and compares results against paper-reported values.",
+      "module": "analysis",
+      "estimated_loc": 350,
+      "dependencies": ["config.py"],
+      "key_contents": [
+        "class PerformanceAnalyzer:",
+        "  compute_metrics(returns) -> dict  # Sharpe, Sortino, MaxDD, etc.",
+        "  annualize_return(returns, frequency) -> float",
+        "  annualize_volatility(returns, frequency) -> float",
+        "  compute_sharpe_ratio(returns, risk_free, frequency) -> float",
+        "  compute_max_drawdown(returns) -> tuple[float, date, date]",
+        "  compute_drawdown_series(returns) -> pd.Series",
+        "  run_factor_regression(returns, factors) -> RegressionResult",
+        "  compute_information_ratio(returns, benchmark) -> float",
+        "  subperiod_analysis(returns, periods) -> dict",
+        "  compute_rolling_metrics(returns, window) -> pd.DataFrame",
+        "  compare_with_paper(computed, reported) -> dict",
+        "  statistical_significance_tests(returns) -> dict"
+      ]
+    },
+    {
+      "path": "visualization.py",
+      "description": "Chart generation and visual report creation. Produces publication-quality plots for cumulative returns, drawdowns, rolling metrics, signal distributions, and portfolio characteristics.",
+      "module": "visualization",
+      "estimated_loc": 250,
+      "dependencies": ["config.py", "analysis.py"],
+      "key_contents": [
+        "class ReportGenerator:",
+        "  plot_cumulative_returns(returns_dict, benchmark) -> Figure",
+        "  plot_drawdowns(returns) -> Figure",
+        "  plot_rolling_sharpe(returns, window) -> Figure",
+        "  plot_annual_returns(returns) -> Figure",
+        "  plot_monthly_heatmap(returns) -> Figure",
+        "  plot_signal_distribution(signals) -> Figure",
+        "  plot_portfolio_turnover(turnover) -> Figure",
+        "  plot_factor_exposures(factor_loadings) -> Figure",
+        "  generate_tearsheet(results) -> None  # Save full report",
+        "  plot_quintile_returns(quintile_returns) -> Figure"
+      ]
+    },
+    {
+      "path": "main.py",
+      "description": "CLI entry point and pipeline orchestrator. Runs the full backtest pipeline: load data -> compute signals -> construct portfolios -> analyze performance -> generate report. Supports command-line arguments for date ranges, config overrides, and output options.",
+      "module": "orchestration",
+      "estimated_loc": 150,
+      "dependencies": ["config.py", "data_loader.py", "signals.py", "portfolio.py", "analysis.py", "visualization.py"],
+      "key_contents": [
+        "def parse_args() -> argparse.Namespace",
+        "def run_backtest(config) -> BacktestResult",
+        "def main():",
+        "  1. Parse CLI arguments",
+        "  2. Load and validate data",
+        "  3. Compute signals",
+        "  4. Construct portfolios",
+        "  5. Compute returns (gross and net)",
+        "  6. Analyze performance",
+        "  7. Generate visualizations and report",
+        "  8. Save results",
+        "if __name__ == '__main__': main()"
+      ]
+    },
+    {
+      "path": "requirements.txt",
+      "description": "Python package dependencies with version constraints",
+      "module": "devops",
+      "estimated_loc": 15,
+      "dependencies": [],
+      "key_contents": [
+        "pandas>=1.5.0",
+        "numpy>=1.23.0",
+        "yfinance>=0.2.0",
+        "matplotlib>=3.6.0",
+        "scipy>=1.9.0",
+        "statsmodels>=0.13.0",
+        "seaborn>=0.12.0",
+        "pytest>=7.0.0"
+      ]
+    },
+    {
+      "path": "README.md",
+      "description": "Project documentation: strategy description, setup instructions, usage examples, expected results, methodology notes, and references to the original paper.",
+      "module": "documentation",
+      "estimated_loc": 150,
+      "dependencies": [],
+      "key_contents": [
+        "# Project Title",
+        "## Strategy Overview (from paper)",
+        "## Quick Start",
+        "## Installation",
+        "## Usage",
+        "## Expected Results (from paper)",
+        "## Methodology Notes",
+        "## Project Structure",
+        "## References"
+      ]
+    },
+    {
+      "path": "tests/test_signals.py",
+      "description": "Unit tests for signal generation logic",
+      "module": "testing",
+      "estimated_loc": 120,
+      "dependencies": ["signals.py"],
+      "key_contents": [
+        "test_signal_calculation_correctness()",
+        "test_no_lookahead_bias()",
+        "test_signal_normalization()",
+        "test_missing_data_handling()",
+        "test_edge_cases()"
+      ]
+    },
+    {
+      "path": "tests/test_portfolio.py",
+      "description": "Unit tests for portfolio construction logic",
+      "module": "testing",
+      "estimated_loc": 100,
+      "dependencies": ["portfolio.py"],
+      "key_contents": [
+        "test_portfolio_sorting()",
+        "test_weight_computation()",
+        "test_rebalancing_timing()",
+        "test_transaction_costs()",
+        "test_long_short_neutrality()"
+      ]
+    }
+  ],
+
+  "class_diagram_mermaid": "classDiagram\n    class Config {\n        +STRATEGY_NAME: str\n        +LOOKBACK_PERIOD: int\n        +REBALANCE_FREQ: str\n        +UNIVERSE: list\n        +START_DATE: str\n        +END_DATE: str\n        +TRANSACTION_COST_BPS: float\n        +N_PORTFOLIOS: int\n    }\n    class DataLoader {\n        +config: Config\n        +fetch_prices() DataFrame\n        +compute_returns(prices) DataFrame\n        +apply_universe_filters(data) DataFrame\n        +handle_missing_data(data) DataFrame\n        +get_risk_free_rate() Series\n    }\n    class SignalGenerator {\n        +config: Config\n        +compute_signal(data) DataFrame\n        +normalize_signal(signal) DataFrame\n        +rank_signal(signal) DataFrame\n        +combine_signals(signals, weights) DataFrame\n    }\n    class PortfolioConstructor {\n        +config: Config\n        +sort_into_portfolios(signal, n) dict\n        +compute_weights(signal, method) DataFrame\n        +apply_rebalancing(weights, freq) DataFrame\n        +compute_portfolio_returns(weights, returns) DataFrame\n        +compute_transaction_costs(changes, cost) Series\n    }\n    class PerformanceAnalyzer {\n        +compute_metrics(returns) dict\n        +compute_sharpe_ratio(returns, rf) float\n        +compute_max_drawdown(returns) tuple\n        +run_factor_regression(returns, factors) Result\n        +subperiod_analysis(returns, periods) dict\n    }\n    class ReportGenerator {\n        +plot_cumulative_returns(returns) Figure\n        +plot_drawdowns(returns) Figure\n        +plot_rolling_sharpe(returns) Figure\n        +generate_tearsheet(results) None\n    }\n    Config <-- DataLoader\n    Config <-- SignalGenerator\n    Config <-- PortfolioConstructor\n    DataLoader --> SignalGenerator : price_data\n    SignalGenerator --> PortfolioConstructor : signals\n    PortfolioConstructor --> PerformanceAnalyzer : returns\n    PerformanceAnalyzer --> ReportGenerator : metrics",
+
+  "sequence_diagram_mermaid": "sequenceDiagram\n    participant User\n    participant Main\n    participant Config\n    participant DataLoader\n    participant SignalGenerator\n    participant PortfolioConstructor\n    participant PerformanceAnalyzer\n    participant ReportGenerator\n\n    User->>Main: python main.py --start-date 2000-01-01\n    Main->>Config: Load configuration\n    Config-->>Main: strategy parameters\n\n    Main->>DataLoader: fetch_prices(universe, start, end)\n    DataLoader->>DataLoader: apply_universe_filters()\n    DataLoader->>DataLoader: handle_missing_data()\n    DataLoader->>DataLoader: compute_returns()\n    DataLoader-->>Main: clean price_data, returns\n\n    Main->>SignalGenerator: compute_signal(price_data)\n    SignalGenerator->>SignalGenerator: calculate raw signal (lookback)\n    SignalGenerator->>SignalGenerator: normalize_signal()\n    SignalGenerator->>SignalGenerator: rank_signal() [if cross-sectional]\n    SignalGenerator-->>Main: signal DataFrame\n\n    Main->>PortfolioConstructor: sort_into_portfolios(signal)\n    PortfolioConstructor->>PortfolioConstructor: determine breakpoints\n    PortfolioConstructor->>PortfolioConstructor: assign assets to groups\n    PortfolioConstructor->>PortfolioConstructor: compute_weights()\n    PortfolioConstructor->>PortfolioConstructor: apply_rebalancing() [with lag]\n    PortfolioConstructor->>PortfolioConstructor: compute_portfolio_returns()\n    PortfolioConstructor->>PortfolioConstructor: compute_transaction_costs()\n    PortfolioConstructor-->>Main: portfolio returns (gross & net)\n\n    Main->>PerformanceAnalyzer: compute_metrics(returns)\n    PerformanceAnalyzer->>PerformanceAnalyzer: Sharpe, Sortino, MaxDD, etc.\n    PerformanceAnalyzer->>PerformanceAnalyzer: run_factor_regression()\n    PerformanceAnalyzer->>PerformanceAnalyzer: subperiod_analysis()\n    PerformanceAnalyzer->>PerformanceAnalyzer: compare_with_paper()\n    PerformanceAnalyzer-->>Main: metrics dict\n\n    Main->>ReportGenerator: generate_tearsheet(results)\n    ReportGenerator->>ReportGenerator: plot_cumulative_returns()\n    ReportGenerator->>ReportGenerator: plot_drawdowns()\n    ReportGenerator->>ReportGenerator: plot_rolling_sharpe()\n    ReportGenerator-->>Main: saved charts & report\n\n    Main-->>User: Backtest complete. Results in output/",
+
+  "module_relationships": {
+    "config.py": {
+      "imported_by": ["data_loader.py", "signals.py", "portfolio.py", "analysis.py", "visualization.py", "main.py"],
+      "imports": [],
+      "relationship_type": "configuration_provider"
+    },
+    "data_loader.py": {
+      "imported_by": ["main.py"],
+      "imports": ["config.py"],
+      "relationship_type": "data_provider"
+    },
+    "signals.py": {
+      "imported_by": ["main.py"],
+      "imports": ["config.py"],
+      "relationship_type": "signal_computation"
+    },
+    "portfolio.py": {
+      "imported_by": ["main.py"],
+      "imports": ["config.py"],
+      "relationship_type": "portfolio_construction"
+    },
+    "analysis.py": {
+      "imported_by": ["main.py", "visualization.py"],
+      "imports": ["config.py"],
+      "relationship_type": "performance_analysis"
+    },
+    "visualization.py": {
+      "imported_by": ["main.py"],
+      "imports": ["config.py"],
+      "relationship_type": "reporting"
+    },
+    "main.py": {
+      "imported_by": [],
+      "imports": ["config.py", "data_loader.py", "signals.py", "portfolio.py", "analysis.py", "visualization.py"],
+      "relationship_type": "orchestrator"
+    }
+  },
+
+  "coding_conventions": {
+    "style_guide": "PEP 8 with type hints",
+    "docstring_format": "Google style with paper references",
+    "naming_conventions": {
+      "classes": "PascalCase",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE",
+      "dataframes": "descriptive_name_df or just descriptive_name"
+    },
+    "error_handling": "Use custom exceptions (e.g., DataNotFoundError, SignalComputationError)",
+    "logging": "Use Python logging module, not print statements",
+    "testing": "pytest with fixtures for sample data"
+  },
+
+  "data_flow": {
+    "input": "Raw price/fundamental data from data source",
+    "stage_1_data": "Clean, aligned DataFrames (dates x assets) from DataLoader",
+    "stage_2_signals": "Signal DataFrame (dates x assets) from SignalGenerator - values represent signal strength",
+    "stage_3_weights": "Weight DataFrame (dates x assets) from PortfolioConstructor - values represent portfolio weights",
+    "stage_4_returns": "Return Series (dates) from PortfolioConstructor - strategy returns over time",
+    "stage_5_metrics": "Metrics dict from PerformanceAnalyzer - Sharpe, drawdown, factor loadings, etc.",
+    "output": "Charts, CSV files, and summary report from ReportGenerator"
+  }
+}
+
+ARCHITECTURE DESIGN GUIDELINES:
+1. Each module should have a single, clear responsibility. Data loading is separate from signal computation.
+2. Config must be the SINGLE source of truth for all parameters. No magic numbers in code.
+3. The data flow should be strictly unidirectional: data -> signals -> portfolios -> analysis -> visualization.
+4. All date-indexed DataFrames should use pandas DatetimeIndex for consistent time alignment.
+5. Signal DataFrames and weight DataFrames should have identical structure: DatetimeIndex rows, asset columns.
+6. The architecture must make look-ahead bias prevention structurally obvious (e.g., signal computation functions take only historical data).
+7. Transaction costs should be computed separately and subtracted, making it easy to report gross vs. net results.
+8. The design should support easy extension: adding new signals, alternative weighting schemes, or additional metrics.

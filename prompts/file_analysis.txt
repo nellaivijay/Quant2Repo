@@ -1,0 +1,244 @@
+You are a senior software architect and quantitative developer. Your task is to perform a detailed analysis of a single file in a backtest repository, producing a structured specification that can guide code generation or review.
+
+This analysis must be thorough enough that another developer could implement the file from scratch using only your specification. Pay special attention to the quantitative finance aspects: signal construction, look-ahead bias prevention, and correct handling of financial time series.
+
+=== FILE TO ANALYZE ===
+File path: {{file_path}}
+File description: {{file_description}}
+=== END FILE INFO ===
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== PRIOR FILE ANALYSES ===
+The following files have already been analyzed. Use these to understand dependencies and interfaces:
+{{prior_analyses}}
+=== END PRIOR ANALYSES ===
+
+Produce a comprehensive JSON analysis of this file:
+
+{
+  "file_metadata": {
+    "file_path": "Path to the file",
+    "module_name": "Python module name",
+    "description": "What this file does in the context of the backtest",
+    "role_in_pipeline": "Where this file fits in the data -> signals -> portfolio -> analysis pipeline",
+    "estimated_loc": 200,
+    "complexity": "low | medium | high"
+  },
+
+  "imports": {
+    "standard_library": ["os", "logging", "datetime", "typing"],
+    "third_party": [
+      {"package": "pandas", "imports": ["pd"], "purpose": "DataFrame operations for time series"},
+      {"package": "numpy", "imports": ["np"], "purpose": "Numerical computations"},
+      {"package": "scipy", "imports": ["stats"], "purpose": "Statistical functions (if needed)"}
+    ],
+    "local": [
+      {"module": "config", "imports": ["LOOKBACK_PERIOD", "UNIVERSE", "etc."], "purpose": "Strategy parameters"}
+    ]
+  },
+
+  "classes": [
+    {
+      "class_name": "ClassName",
+      "description": "What this class represents and does",
+      "paper_reference": "Section/equation from paper this class implements",
+
+      "constructor": {
+        "parameters": [
+          {"name": "param", "type": "type", "description": "What this parameter is", "default": "default_value"}
+        ],
+        "instance_variables": [
+          {"name": "self.var", "type": "type", "description": "What this variable stores", "initialized_from": "constructor param or computed"}
+        ]
+      },
+
+      "methods": [
+        {
+          "method_name": "method_name",
+          "description": "What this method does",
+          "paper_reference": "Specific equation or section reference",
+          "parameters": [
+            {"name": "param", "type": "pd.DataFrame", "description": "Description with expected shape and columns"}
+          ],
+          "return_type": "pd.DataFrame",
+          "return_description": "What the return value represents, its shape, and index/column structure",
+          "algorithm_steps": [
+            "Step 1: Description of first computation",
+            "Step 2: Description of second computation"
+          ],
+          "edge_cases": ["How missing data is handled", "What happens with insufficient history"],
+          "no_lookahead_notes": "How this method ensures no look-ahead bias",
+          "config_references": ["config.PARAM_1", "config.PARAM_2"],
+          "dependencies": ["Other methods or modules this calls"]
+        }
+      ],
+
+      "properties": [
+        {"name": "property_name", "type": "type", "description": "What this property returns"}
+      ]
+    }
+  ],
+
+  "functions": [
+    {
+      "function_name": "standalone_function",
+      "description": "What this function does",
+      "paper_reference": "Paper reference if applicable",
+      "parameters": [
+        {"name": "param", "type": "type", "description": "Description"}
+      ],
+      "return_type": "type",
+      "return_description": "What is returned",
+      "algorithm_steps": ["Step-by-step algorithm"],
+      "complexity": "O(n) or similar",
+      "pure_function": true,
+      "config_references": []
+    }
+  ],
+
+  "dependencies": {
+    "upstream": [
+      {
+        "module": "module_name",
+        "what_is_used": "Which classes/functions from this module",
+        "data_passed": "What data flows from that module to this one",
+        "interface_contract": "Expected input format (DataFrame shape, columns, index type)"
+      }
+    ],
+    "downstream": [
+      {
+        "module": "module_name",
+        "what_is_provided": "What this module provides to downstream",
+        "data_passed": "What data flows from this module to the downstream one"
+      }
+    ]
+  },
+
+  "algorithms": [
+    {
+      "algorithm_name": "Name of the algorithm implemented",
+      "paper_reference": "Exact paper reference (Section X, Equation Y)",
+      "purpose": "What this algorithm achieves in the backtest",
+      "ordered_steps": [
+        {
+          "step_number": 1,
+          "description": "Detailed description of this computation step",
+          "formula": "Mathematical formula if applicable",
+          "pandas_operation": "Corresponding pandas/numpy operation",
+          "input": "What data this step takes",
+          "output": "What this step produces",
+          "caution": "Any pitfalls or non-obvious aspects"
+        }
+      ],
+      "time_complexity": "O(T * N) where T=dates, N=assets",
+      "space_complexity": "O(T * N)"
+    }
+  ],
+
+  "input_output_spec": {
+    "primary_inputs": [
+      {
+        "name": "Input name",
+        "type": "pd.DataFrame",
+        "index": "DatetimeIndex (daily/monthly trading dates)",
+        "columns": "Asset tickers (str) or MultiIndex",
+        "dtype": "float64",
+        "example_shape": "(2520, 500) for 10 years daily, 500 assets",
+        "constraints": "No future dates, monotonically increasing index",
+        "missing_data": "May contain NaN for non-trading days or missing assets"
+      }
+    ],
+    "primary_outputs": [
+      {
+        "name": "Output name",
+        "type": "pd.DataFrame or pd.Series",
+        "index": "DatetimeIndex (same as input)",
+        "columns": "Same as input or strategy return columns",
+        "dtype": "float64",
+        "value_range": "e.g., 'signal values typically between -3 and +3 for z-scores'",
+        "missing_data": "NaN for dates where signal cannot be computed (insufficient history)"
+      }
+    ],
+    "intermediate_data": [
+      {
+        "name": "Intermediate variable",
+        "type": "type",
+        "description": "What it represents",
+        "lifecycle": "When it's created and when it's consumed"
+      }
+    ]
+  },
+
+  "test_criteria": {
+    "unit_tests": [
+      {
+        "test_name": "test_description",
+        "description": "What this test verifies",
+        "test_type": "correctness | no_lookahead | edge_case | regression",
+        "setup": "How to set up test data (e.g., 'create synthetic price series with known momentum')",
+        "assertion": "What to assert (e.g., 'signal for asset with 10% return over lookback should be 0.10')",
+        "importance": "high | medium | low"
+      }
+    ],
+    "integration_tests": [
+      {
+        "test_name": "test_description",
+        "description": "How this module integrates with upstream/downstream modules",
+        "modules_involved": ["module1", "module2"]
+      }
+    ],
+    "property_tests": [
+      {
+        "property": "Description of invariant that should always hold",
+        "example": "e.g., 'portfolio weights should sum to 1.0 at every rebalancing date'"
+      }
+    ]
+  },
+
+  "quant_specific": {
+    "signal_type": "momentum | value | carry | mean_reversion | volatility | quality | N/A",
+    "lookback_period": "Lookback period used (if signal file)",
+    "rebalancing_frequency": "monthly | quarterly | etc. (if portfolio file)",
+    "cross_sectional": true,
+    "time_series": false,
+    "look_ahead_risk_areas": [
+      "Specific code locations where look-ahead bias could creep in"
+    ],
+    "financial_conventions": [
+      "e.g., 'returns are simple arithmetic returns, not log returns'",
+      "e.g., 'dates represent end-of-day after market close'",
+      "e.g., 'weights are determined before the return period they apply to'"
+    ],
+    "common_pitfalls": [
+      "Pitfalls specific to this type of file in a backtest context"
+    ]
+  },
+
+  "error_handling": {
+    "expected_errors": [
+      {
+        "error_type": "ValueError",
+        "condition": "When this error occurs",
+        "handling": "How to handle it"
+      }
+    ],
+    "data_validation": [
+      {
+        "check": "What to validate",
+        "when": "When to perform validation",
+        "action": "What to do if validation fails"
+      }
+    ]
+  }
+}
+
+ANALYSIS GUIDELINES:
+1. Be specific about DataFrame shapes, column names, and index types. Ambiguity in data structures causes implementation bugs.
+2. For every algorithm step, show both the mathematical formula AND the corresponding pandas/numpy operation.
+3. Identify all places where look-ahead bias could occur and document prevention strategies.
+4. Define clear interface contracts between this file and its dependencies.
+5. Test criteria should be concrete enough to implement directly as pytest test functions.
+6. For quant-specific fields, think about what a portfolio manager or risk manager would want to verify about this module.

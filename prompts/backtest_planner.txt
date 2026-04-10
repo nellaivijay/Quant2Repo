@@ -1,0 +1,310 @@
+You are a senior quantitative developer who designs backtesting systems for systematic trading strategies. Your task is to create a comprehensive backtest implementation plan based on a strategy extracted from an academic paper.
+
+You will be given the paper analysis and structured strategy extraction. Your job is to translate the academic methodology into an actionable engineering plan that can be directly implemented as a Python backtesting codebase.
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== STRATEGY EXTRACTION ===
+{{strategy_extraction}}
+=== END STRATEGY EXTRACTION ===
+
+Produce a detailed JSON backtest plan with the following structure:
+
+{
+  "plan_metadata": {
+    "strategy_name": "Name of the strategy being backtested",
+    "plan_version": "1.0",
+    "complexity_assessment": "low | medium | high",
+    "estimated_files": "Number of files to generate",
+    "estimated_loc": "Approximate total lines of code",
+    "key_challenges": ["List the main implementation challenges"]
+  },
+
+  "core_modules": {
+    "config": {
+      "description": "Central configuration module storing all strategy parameters",
+      "responsibilities": [
+        "Define all tunable hyperparameters extracted from the paper",
+        "Store asset universe definitions",
+        "Define date ranges (in-sample, out-of-sample)",
+        "Set data source configurations",
+        "Define rebalancing schedule",
+        "Store transaction cost assumptions"
+      ],
+      "parameters_to_define": [
+        {
+          "name": "Parameter name (e.g., LOOKBACK_PERIOD)",
+          "value": "Default value from paper's primary specification",
+          "paper_reference": "Where in the paper this is defined",
+          "sensitivity_range": "Range to test in robustness checks"
+        }
+      ]
+    },
+    "data_loader": {
+      "description": "Data fetching, cleaning, and preprocessing module",
+      "responsibilities": [
+        "Fetch price data from specified source (yfinance, WRDS, etc.)",
+        "Handle corporate actions (splits, dividends)",
+        "Align data frequencies",
+        "Apply universe filters",
+        "Cache data for efficiency",
+        "Handle missing data and delistings"
+      ],
+      "data_sources": ["Primary and fallback data sources"],
+      "output_format": "Description of output DataFrames (columns, index, frequency)"
+    },
+    "signals": {
+      "description": "Signal generation module implementing the paper's methodology",
+      "responsibilities": [
+        "Compute trading signals exactly as described in the paper",
+        "Apply signal normalization and winsorization",
+        "Handle cross-sectional ranking if needed",
+        "Apply any signal combination or weighting",
+        "Ensure no look-ahead bias in signal construction"
+      ],
+      "signal_functions": [
+        {
+          "function_name": "Name of the signal function",
+          "description": "What this function computes",
+          "inputs": ["Input DataFrames and parameters"],
+          "output": "Output DataFrame description",
+          "paper_section": "Section of paper describing this",
+          "formula": "Key formula implemented"
+        }
+      ]
+    },
+    "portfolio": {
+      "description": "Portfolio construction and rebalancing module",
+      "responsibilities": [
+        "Sort assets into portfolios based on signals",
+        "Apply weighting scheme (equal, value, signal-weighted)",
+        "Implement rebalancing logic with proper timing",
+        "Handle entry/exit rules",
+        "Apply position size constraints",
+        "Track portfolio holdings over time"
+      ],
+      "portfolio_formation_steps": [
+        "Step-by-step description of how portfolios are formed each rebalancing period"
+      ]
+    },
+    "analysis": {
+      "description": "Performance analysis and reporting module",
+      "responsibilities": [
+        "Compute strategy returns (gross and net of costs)",
+        "Calculate performance metrics (Sharpe, Sortino, max drawdown, etc.)",
+        "Run factor regressions (CAPM, FF3, FF5, Carhart)",
+        "Generate sub-period analysis",
+        "Compare against paper's reported results",
+        "Statistical significance tests"
+      ],
+      "metrics_to_compute": [
+        {
+          "metric_name": "Name",
+          "formula": "How to compute it",
+          "benchmark": "Expected value from paper"
+        }
+      ]
+    },
+    "visualization": {
+      "description": "Charts and visual report generation",
+      "responsibilities": [
+        "Cumulative return charts (strategy vs benchmark)",
+        "Drawdown charts",
+        "Rolling Sharpe ratio",
+        "Signal distribution plots",
+        "Portfolio turnover over time",
+        "Factor exposure charts",
+        "Generate PDF or HTML report"
+      ],
+      "chart_list": ["List of specific charts to generate"]
+    },
+    "main": {
+      "description": "CLI orchestrator and entry point",
+      "responsibilities": [
+        "Parse command-line arguments",
+        "Orchestrate the full backtest pipeline",
+        "Support running individual modules",
+        "Handle logging and error reporting",
+        "Save results to disk"
+      ],
+      "cli_arguments": [
+        "--start-date", "--end-date", "--config", "--output-dir",
+        "--no-costs", "--verbose", "--quick-run"
+      ]
+    }
+  },
+
+  "data_pipeline": {
+    "raw_data_acquisition": {
+      "description": "How to obtain the required data",
+      "primary_source": "e.g., yfinance for daily prices",
+      "fallback_source": "e.g., pandas-datareader",
+      "data_fields": ["List all fields needed: close, volume, market_cap, etc."],
+      "frequency": "daily | monthly",
+      "date_range": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD or 'today'"}
+    },
+    "data_cleaning": {
+      "missing_data_policy": "forward_fill | drop | interpolate",
+      "outlier_treatment": "How to handle outliers in price/return data",
+      "corporate_actions": "How to handle splits, dividends, mergers",
+      "delisted_securities": "How to handle delistings (last known price, removal date)"
+    },
+    "data_transformations": [
+      {
+        "name": "Transformation name (e.g., 'compute_returns')",
+        "input": "Input data description",
+        "output": "Output data description",
+        "formula": "Transformation formula",
+        "notes": "Implementation notes"
+      }
+    ],
+    "frequency_alignment": {
+      "description": "How different data frequencies are aligned",
+      "resampling_method": "last | mean | sum",
+      "calendar": "trading_days | calendar_days | business_days"
+    }
+  },
+
+  "signal_generation": {
+    "overview": "High-level description of the signal generation process",
+    "step_by_step": [
+      {
+        "step": 1,
+        "name": "Step name",
+        "description": "Detailed description",
+        "function": "Function name that implements this",
+        "inputs": ["Input data"],
+        "output": "Output description",
+        "lookback": "Lookback period used",
+        "vectorized": true,
+        "no_lookahead_check": "How to verify no look-ahead bias in this step"
+      }
+    ],
+    "signal_combination": {
+      "method": "How multiple signals are combined (if applicable)",
+      "weights": "Signal weights",
+      "normalization": "How combined signal is normalized"
+    },
+    "edge_cases": [
+      "How to handle new listings (insufficient history)",
+      "How to handle missing signal values",
+      "How to handle extreme signal values",
+      "How to handle corporate events during lookback"
+    ]
+  },
+
+  "portfolio_rules": {
+    "formation": {
+      "sorting_variable": "What signal is used for sorting",
+      "number_of_groups": "quintiles=5, deciles=10, etc.",
+      "breakpoints": "How breakpoints are determined (NYSE breakpoints, full sample, etc.)",
+      "long_portfolio": "Which group(s) form the long leg",
+      "short_portfolio": "Which group(s) form the short leg",
+      "benchmark_portfolio": "What benchmark to compare against"
+    },
+    "rebalancing": {
+      "frequency": "How often portfolios are rebalanced",
+      "timing": "Exact timing (end of month, beginning of month, etc.)",
+      "signal_to_trade_lag": "Time between signal date and trade date",
+      "partial_rebalancing": "Whether partial rebalancing is used"
+    },
+    "weighting": {
+      "scheme": "equal_weight | value_weight | signal_weight",
+      "rebalancing_within_period": "Whether weights drift between rebalancing dates",
+      "weight_constraints": {"min_weight": null, "max_weight": null}
+    },
+    "transaction_costs": {
+      "model": "fixed | proportional | market_impact",
+      "cost_per_trade": "Cost assumption (e.g., 10 bps one-way)",
+      "application": "How costs are applied (on rebalancing, on all trades)"
+    }
+  },
+
+  "performance_evaluation": {
+    "return_computation": {
+      "type": "arithmetic | geometric | log",
+      "gross_vs_net": "Compute both gross and net of transaction costs",
+      "excess_returns": "Whether to compute excess over risk-free rate",
+      "compounding": "How returns are compounded over time"
+    },
+    "metrics": [
+      {"name": "Annualized Return", "formula": "geometric_mean * 12 (for monthly) or * 252 (for daily)"},
+      {"name": "Annualized Volatility", "formula": "std * sqrt(12) or * sqrt(252)"},
+      {"name": "Sharpe Ratio", "formula": "(mean_excess_return / std_excess_return) * sqrt(annualization_factor)"},
+      {"name": "Sortino Ratio", "formula": "mean_excess_return / downside_deviation * sqrt(annualization_factor)"},
+      {"name": "Maximum Drawdown", "formula": "max peak-to-trough decline"},
+      {"name": "Calmar Ratio", "formula": "annualized_return / abs(max_drawdown)"},
+      {"name": "Skewness", "formula": "third moment of returns"},
+      {"name": "Kurtosis", "formula": "fourth moment of returns"},
+      {"name": "Hit Rate", "formula": "fraction of positive return periods"},
+      {"name": "Average Turnover", "formula": "mean absolute weight change per rebalancing"},
+      {"name": "Information Ratio", "formula": "alpha / tracking_error vs benchmark"}
+    ],
+    "factor_analysis": {
+      "models": ["CAPM", "Fama-French 3-factor", "Fama-French 5-factor", "Carhart 4-factor"],
+      "alpha_test": "Intercept from factor regression with t-statistic",
+      "factor_data_source": "Kenneth French data library or equivalent"
+    },
+    "benchmarks": ["List of benchmarks to compare against"],
+    "statistical_tests": [
+      "t-test for mean returns",
+      "Bootstrap confidence intervals",
+      "Newey-West standard errors for autocorrelation-robust inference"
+    ]
+  },
+
+  "robustness_checks": {
+    "parameter_sensitivity": [
+      {
+        "parameter": "Parameter name",
+        "range": "Range to sweep",
+        "expected_impact": "Expected effect on results"
+      }
+    ],
+    "subperiod_analysis": {
+      "periods": ["e.g., 'first_half', 'second_half', 'pre_2008', 'post_2008', 'expansion', 'recession'"],
+      "purpose": "Check if strategy works consistently across different time periods"
+    },
+    "transaction_cost_sensitivity": {
+      "cost_levels": ["0 bps", "5 bps", "10 bps", "25 bps", "50 bps"],
+      "breakeven_cost": "Find the transaction cost level that reduces Sharpe to 0"
+    },
+    "universe_variations": ["Test with different universes or filters"],
+    "alternative_implementations": ["Test with different weighting schemes, rebalancing frequencies, etc."]
+  },
+
+  "dependencies": {
+    "python_packages": [
+      {"name": "pandas", "min_version": "1.5.0", "purpose": "Data manipulation"},
+      {"name": "numpy", "min_version": "1.23.0", "purpose": "Numerical computation"},
+      {"name": "yfinance", "min_version": "0.2.0", "purpose": "Data fetching"},
+      {"name": "matplotlib", "min_version": "3.6.0", "purpose": "Visualization"},
+      {"name": "scipy", "min_version": "1.9.0", "purpose": "Statistical tests"},
+      {"name": "statsmodels", "min_version": "0.13.0", "purpose": "Factor regressions"}
+    ],
+    "optional_packages": [
+      {"name": "seaborn", "purpose": "Enhanced visualizations"},
+      {"name": "empyrical", "purpose": "Performance metrics"},
+      {"name": "pyfolio", "purpose": "Tearsheet generation"}
+    ]
+  },
+
+  "execution_plan": {
+    "estimated_runtime": "Expected backtest runtime (seconds/minutes)",
+    "memory_requirements": "Approximate memory needed",
+    "parallelization_opportunities": ["Where parallel execution could speed things up"],
+    "checkpointing": "Whether to save intermediate results"
+  }
+}
+
+PLANNING GUIDELINES:
+1. Every configurable parameter from the paper MUST appear in the config module. Never hardcode strategy parameters.
+2. The data pipeline must ensure no look-ahead bias at every step. Data available on date T should only reflect information known before T.
+3. Signal computation should be fully vectorized using pandas/numpy for performance.
+4. Portfolio construction must respect the exact methodology in the paper (sorting, breakpoints, weighting).
+5. Transaction costs should be modular - easy to toggle on/off or change assumptions.
+6. All performance metrics should match the paper's methodology for fair comparison.
+7. The plan should be implementable using freely available data (yfinance) as a fallback even if the paper uses proprietary data.
+8. Include sufficient logging and intermediate output for debugging signal/portfolio construction issues.

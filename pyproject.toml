@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "quant2repo"
+version = "1.0.0"
+description = "Multi-model agentic framework that converts quantitative finance research papers into production-ready backtesting repositories"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [{name = "Vijayakumar Ramdoss", email = "nellaivijay@gmail.com"}]
+keywords = ["quantitative-finance", "backtesting", "trading", "research", "llm", "agentic"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "requests>=2.31.0",
+    "PyPDF2>=3.0.0",
+    "Pillow>=10.2.0",
+    "pyyaml>=6.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+]
+
+[project.optional-dependencies]
+gemini = ["google-generativeai>=0.5.0"]
+openai = ["openai>=1.12.0"]
+anthropic = ["anthropic>=0.25.0"]
+ollama = []
+vision = ["PyMuPDF>=1.24.0"]
+all = [
+    "google-generativeai>=0.5.0",
+    "openai>=1.12.0",
+    "anthropic>=0.25.0",
+    "PyMuPDF>=1.24.0",
+    "lxml>=5.0.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.3.0",
+]
+
+[project.scripts]
+quant2repo = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/nellaivijay/Quant2Repo"
+Repository = "https://github.com/nellaivijay/Quant2Repo"
+Issues = "https://github.com/nellaivijay/Quant2Repo/issues"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

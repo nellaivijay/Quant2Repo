@@ -1,0 +1,278 @@
+You are a quantitative finance researcher evaluating a backtest replication. Your task is to compare the generated backtest results against the results reported in the original academic paper and assess how closely the replication matches.
+
+Perfect replication is rarely possible due to data differences (paper uses CRSP/Compustat, replication uses yfinance), sample period differences, and minor methodology interpretation differences. Your evaluation should account for these expected differences while identifying genuine implementation errors.
+
+=== GENERATED CODE FILES ===
+{{generated_files}}
+=== END GENERATED CODE FILES ===
+
+=== PAPER-REPORTED RESULTS ===
+{{paper_results}}
+=== END PAPER-REPORTED RESULTS ===
+
+=== BACKTEST OUTPUT ===
+{{backtest_output}}
+=== END BACKTEST OUTPUT ===
+
+Produce a comprehensive evaluation comparing the replication against the paper. Return JSON:
+
+{
+  "evaluation_summary": {
+    "overall_score": 4,
+    "score_interpretation": "1=Failed replication, 2=Poor match, 3=Partial match, 4=Good match, 5=Excellent match",
+    "confidence": "high | medium | low",
+    "verdict": "One-paragraph summary of how well the replication matches the paper",
+    "data_source_difference": "Whether differences in data source explain observed discrepancies",
+    "sample_period_difference": "Whether sample period differences explain observed discrepancies"
+  },
+
+  "signal_direction_check": {
+    "score": 5,
+    "description": "Do the signals produce returns in the expected direction?",
+    "checks": [
+      {
+        "signal_name": "Name of signal",
+        "paper_direction": "Positive Sharpe for long top quintile / short bottom quintile",
+        "replication_direction": "Direction observed in replication",
+        "match": true,
+        "comment": "Explanation"
+      }
+    ],
+    "overall_assessment": "Whether the fundamental signal direction is correct. This is the most basic check - if direction is wrong, the implementation is fundamentally broken."
+  },
+
+  "sharpe_ratio_comparison": {
+    "score": 4,
+    "paper_sharpe": 1.2,
+    "replication_sharpe": 0.95,
+    "difference": -0.25,
+    "percent_difference": "-20.8%",
+    "assessment": "Detailed assessment of the Sharpe ratio comparison",
+    "acceptable_range": {
+      "lower": 0.6,
+      "upper": 1.8,
+      "rationale": "Expected range given data source differences, sample period, and transaction costs. A 30-50% deviation is common when using yfinance instead of CRSP."
+    },
+    "within_acceptable_range": true,
+    "possible_explanations_for_difference": [
+      "Different data source (yfinance vs. CRSP)",
+      "Different sample period",
+      "Different universe composition",
+      "Transaction costs not applied in paper but applied here",
+      "Survivorship bias in paper's data"
+    ]
+  },
+
+  "return_comparison": {
+    "score": 3,
+    "metrics": [
+      {
+        "metric_name": "Annualized Return",
+        "paper_value": "12.5%",
+        "replication_value": "9.8%",
+        "difference": "-2.7%",
+        "within_tolerance": true,
+        "tolerance_used": "5% absolute difference",
+        "comment": "Lower return expected with different data source and sample period"
+      },
+      {
+        "metric_name": "Annualized Volatility",
+        "paper_value": "15.0%",
+        "replication_value": "16.2%",
+        "difference": "+1.2%",
+        "within_tolerance": true,
+        "tolerance_used": "3% absolute difference",
+        "comment": "Slightly higher volatility is common with fewer diversifying assets"
+      },
+      {
+        "metric_name": "Maximum Drawdown",
+        "paper_value": "-25.0%",
+        "replication_value": "-28.5%",
+        "difference": "-3.5%",
+        "within_tolerance": true,
+        "tolerance_used": "10% absolute difference for drawdown",
+        "comment": "Drawdown is highly sensitive to specific dates and universe composition"
+      }
+    ]
+  },
+
+  "drawdown_characteristics": {
+    "score": 3,
+    "assessment": "Comparison of drawdown profiles between paper and replication",
+    "paper_max_drawdown": "-25.0%",
+    "replication_max_drawdown": "-28.5%",
+    "drawdown_timing": "Do major drawdowns occur during the same market events?",
+    "recovery_pattern": "Is the recovery pattern similar?",
+    "plausibility": "Is the drawdown profile plausible for this type of strategy?"
+  },
+
+  "turnover_comparison": {
+    "score": 4,
+    "paper_turnover": "Monthly turnover of 15%",
+    "replication_turnover": "Monthly turnover of 18%",
+    "assessment": "Whether turnover levels are reasonable for the rebalancing frequency",
+    "plausibility_check": {
+      "is_plausible": true,
+      "expected_range": "10-25% monthly for a monthly-rebalanced momentum strategy",
+      "rationale": "Turnover depends on signal persistence and universe breadth"
+    }
+  },
+
+  "portfolio_characteristics": {
+    "score": 4,
+    "checks": [
+      {
+        "characteristic": "Average number of holdings",
+        "paper_value": "100 stocks per portfolio",
+        "replication_value": "Variable",
+        "comment": "Assessment"
+      },
+      {
+        "characteristic": "Average position size",
+        "paper_value": "1% per stock (equal weight, 100 stocks)",
+        "replication_value": "Variable",
+        "comment": "Assessment"
+      },
+      {
+        "characteristic": "Sector concentration",
+        "paper_value": "Not reported",
+        "replication_value": "Check if any sector dominates",
+        "comment": "Assessment"
+      }
+    ]
+  },
+
+  "factor_exposure_comparison": {
+    "score": 3,
+    "applicable": true,
+    "checks": [
+      {
+        "factor": "Market (MKT-RF)",
+        "paper_loading": "0.05 (near zero for long-short)",
+        "replication_loading": "Value from regression",
+        "match": true,
+        "comment": "Long-short strategy should have low market exposure"
+      },
+      {
+        "factor": "Size (SMB)",
+        "paper_loading": "0.10",
+        "replication_loading": "Value",
+        "match": true,
+        "comment": "Assessment"
+      },
+      {
+        "factor": "Value (HML)",
+        "paper_loading": "-0.15",
+        "replication_loading": "Value",
+        "match": true,
+        "comment": "Momentum strategies typically have negative value loading"
+      }
+    ],
+    "alpha_comparison": {
+      "paper_alpha": "0.5% monthly",
+      "paper_alpha_tstat": "3.2",
+      "replication_alpha": "Value",
+      "replication_alpha_tstat": "Value",
+      "alpha_significant": true,
+      "comment": "Assessment of alpha significance and magnitude"
+    }
+  },
+
+  "subperiod_consistency": {
+    "score": 3,
+    "assessment": "Does the replication show similar performance patterns across subperiods?",
+    "periods": [
+      {
+        "period_name": "First half",
+        "paper_sharpe": "If reported",
+        "replication_sharpe": "Value",
+        "comment": "Assessment"
+      },
+      {
+        "period_name": "Second half",
+        "paper_sharpe": "If reported",
+        "replication_sharpe": "Value",
+        "comment": "Assessment"
+      }
+    ],
+    "regime_sensitivity": "Is the strategy more sensitive to certain market regimes than the paper suggests?"
+  },
+
+  "component_scores": {
+    "signal_direction": {"score": 5, "weight": 0.30, "comment": "Most fundamental check"},
+    "return_magnitude": {"score": 3, "weight": 0.20, "comment": "Return levels vs paper"},
+    "risk_characteristics": {"score": 4, "weight": 0.15, "comment": "Vol, drawdown, skewness"},
+    "factor_exposures": {"score": 3, "weight": 0.15, "comment": "Factor loadings match"},
+    "portfolio_properties": {"score": 4, "weight": 0.10, "comment": "Holdings, turnover, concentration"},
+    "robustness": {"score": 3, "weight": 0.10, "comment": "Subperiod consistency, parameter sensitivity"},
+    "weighted_score": 3.85
+  },
+
+  "coverage": {
+    "metrics_reported_in_paper": ["List all metrics the paper reports"],
+    "metrics_computed_in_replication": ["List all metrics the replication computes"],
+    "metrics_comparable": ["List metrics that can be directly compared"],
+    "metrics_not_comparable": ["List metrics that cannot be compared (e.g., different time periods)"],
+    "coverage_percentage": 80.0
+  },
+
+  "red_flags": [
+    {
+      "flag": "Description of potential issue",
+      "severity": "critical | warning | info",
+      "impact": "What this suggests about the implementation",
+      "recommendation": "What to investigate or fix"
+    }
+  ],
+
+  "green_flags": [
+    {
+      "flag": "Description of positive indicator",
+      "significance": "What this tells us about implementation quality"
+    }
+  ],
+
+  "summary": {
+    "strengths": [
+      "What the replication does well"
+    ],
+    "weaknesses": [
+      "Where the replication falls short"
+    ],
+    "likely_causes_of_discrepancy": [
+      "Ranked list of most likely reasons for differences between paper and replication"
+    ],
+    "recommendations": [
+      "What to do next to improve the replication"
+    ],
+    "confidence_in_implementation": "How confident we are that the CODE is correct (separate from whether RESULTS match the paper)",
+    "overall_narrative": "A paragraph summarizing the evaluation, suitable for including in a report"
+  }
+}
+
+EVALUATION GUIDELINES:
+
+1. **Signal Direction is Paramount (Score 5 = correct direction)**: If the strategy produces positive returns where the paper predicts positive returns, the implementation is fundamentally sound. Everything else is calibration.
+
+2. **Expect Differences**: A replication using yfinance data will NEVER exactly match a paper using CRSP/Compustat. Typical differences:
+   - Sharpe ratios: 20-50% lower is common due to different universe, survivorship bias in free data
+   - Returns: 2-5% lower annually is typical
+   - Drawdowns: Can be 5-15% worse due to fewer diversifying assets
+   - Turnover: May differ by 20-50% due to different universe size
+
+3. **Scoring Rubric**:
+   - **5 (Excellent)**: Signal direction correct, Sharpe within 20% of paper, all qualitative properties match
+   - **4 (Good)**: Signal direction correct, Sharpe within 40% of paper, most properties match
+   - **3 (Partial)**: Signal direction correct but magnitudes significantly different, or some properties don't match
+   - **2 (Poor)**: Signal direction correct but very weak, or major properties don't match
+   - **1 (Failed)**: Signal direction wrong, or results are clearly nonsensical
+
+4. **Red Flags to Watch For**:
+   - Sharpe > 3.0 for any equity strategy (likely a bug)
+   - Negative Sharpe for a well-documented anomaly (likely wrong signal direction)
+   - Zero turnover (rebalancing not working)
+   - 100% turnover every period (something wrong with sorting)
+   - All assets in one portfolio group (sorting broken)
+   - Returns exactly match paper (suspiciously perfect - possible data snooping)
+
+5. **Distinguish Code Errors from Data Differences**: A lower Sharpe from yfinance data is expected. A NEGATIVE Sharpe for a momentum strategy is a code error.

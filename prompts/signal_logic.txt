@@ -1,0 +1,245 @@
+You are a quantitative researcher and Python developer specializing in systematic trading signal implementation. Your task is to design the detailed signal logic for a backtest that replicates a trading strategy from an academic paper.
+
+This is the most critical part of the backtest implementation. Signal construction errors will propagate through the entire backtest and produce meaningless results. You must be meticulous about every formula, every parameter, and every edge case.
+
+=== PAPER ANALYSIS ===
+{{paper_analysis}}
+=== END PAPER ANALYSIS ===
+
+=== STRATEGY EXTRACTION ===
+{{strategy_extraction}}
+=== END STRATEGY EXTRACTION ===
+
+=== ARCHITECTURE DESIGN ===
+{{architecture_design}}
+=== END ARCHITECTURE DESIGN ===
+
+For each file that involves signal computation or portfolio construction, produce a detailed specification. Return a JSON object:
+
+{
+  "signal_specifications": [
+    {
+      "file_path": "signals.py",
+      "file_description": "Signal generation module",
+
+      "signal_functions": [
+        {
+          "function_name": "compute_primary_signal",
+          "purpose": "Compute the main trading signal as described in the paper",
+          "paper_reference": "Section/equation reference from the paper",
+
+          "exact_formula": {
+            "latex": "LaTeX representation of the formula",
+            "plain_text": "Plain-text version of the formula",
+            "step_by_step": [
+              {
+                "step": 1,
+                "description": "Description of this computation step",
+                "formula": "Formula for this step",
+                "pandas_implementation": "Pseudocode showing pandas operations (e.g., 'df.pct_change(periods=lookback)')",
+                "intermediate_output": "What this step produces"
+              }
+            ]
+          },
+
+          "parameters": [
+            {
+              "name": "lookback_period",
+              "type": "int",
+              "default": "Value from paper's primary specification",
+              "config_reference": "config.LOOKBACK_PERIOD",
+              "description": "Number of periods to look back for signal computation",
+              "paper_values_tested": ["3", "6", "12"],
+              "sensitivity": "How sensitive results are to this parameter"
+            }
+          ],
+
+          "inputs": [
+            {
+              "name": "prices",
+              "type": "pd.DataFrame",
+              "shape": "(n_dates, n_assets)",
+              "description": "Adjusted closing prices, DatetimeIndex, asset ticker columns",
+              "requirements": "Must be split/dividend adjusted. No NaN in critical computation window."
+            }
+          ],
+
+          "output": {
+            "name": "signal",
+            "type": "pd.DataFrame",
+            "shape": "(n_dates, n_assets)",
+            "description": "Signal values where higher = stronger buy signal",
+            "value_range": "Depends on normalization (e.g., z-scores: typically -3 to +3, ranks: 0 to 1)",
+            "interpretation": "How to interpret signal values (e.g., 'positive = buy, negative = sell')"
+          },
+
+          "lookback_windows": {
+            "formation_period": "Signal lookback (e.g., 12 months for momentum)",
+            "skip_period": "Gap between lookback end and signal date (e.g., 1 month for momentum to avoid short-term reversal)",
+            "estimation_window": "For any rolling statistical estimates (e.g., 60-day rolling volatility)",
+            "minimum_history": "Minimum data points needed before signal can be computed"
+          },
+
+          "normalization": {
+            "method": "none | z_score | rank | percentile | min_max",
+            "cross_sectional": "Whether normalization is cross-sectional (across assets at each date) or time-series (for each asset over time)",
+            "implementation": "Detailed description of normalization procedure",
+            "robust_method": "Whether to use robust statistics (median/MAD instead of mean/std)"
+          },
+
+          "edge_cases": {
+            "missing_data": {
+              "policy": "How to handle NaN values in input data",
+              "minimum_observations": "Minimum non-NaN observations required for valid signal",
+              "implementation": "e.g., 'require at least 80% of lookback window to have data'"
+            },
+            "new_listings": {
+              "policy": "How to handle assets with insufficient history",
+              "implementation": "e.g., 'exclude assets with less than lookback_period + skip_period months of data'"
+            },
+            "delistings": {
+              "policy": "How to handle delisted assets",
+              "implementation": "e.g., 'use last available price, mark as delisted, exclude from future signals'"
+            },
+            "extreme_values": {
+              "winsorization": "Whether and how to winsorize (e.g., 'clip at 1st/99th percentile cross-sectionally')",
+              "implementation": "Exact winsorization procedure"
+            },
+            "corporate_events": {
+              "splits": "Signal should use split-adjusted prices",
+              "dividends": "Use total-return adjusted prices if applicable",
+              "mergers": "Handle target companies in merger situations"
+            }
+          },
+
+          "no_lookahead_verification": {
+            "signal_date_convention": "Signal computed at date T uses data up to and including date T-lag",
+            "implementation_lag": "Lag between signal computation and portfolio formation (e.g., 1 day, 1 month)",
+            "critical_checks": [
+              "Signal at time T must not use any price data after T",
+              "If using fundamental data, respect reporting lag (e.g., 3 months after fiscal year end)",
+              "Universe membership at time T determined by data available at T",
+              "Rebalancing at T+1 based on signal computed at T"
+            ]
+          }
+        }
+      ],
+
+      "signal_combination": {
+        "applicable": false,
+        "method": "If multiple signals, how they are combined (e.g., 'equal-weight average of z-scores')",
+        "weights": "Signal combination weights",
+        "normalization_before_combination": "Whether each signal is normalized before combining",
+        "implementation": "Step-by-step combination procedure"
+      },
+
+      "cross_sectional_treatment": {
+        "is_cross_sectional": true,
+        "ranking_method": "How assets are ranked cross-sectionally (e.g., 'pandas rank with method=average')",
+        "breakpoint_methodology": "How portfolio breakpoints are determined (e.g., 'NYSE breakpoints', 'full-sample quantiles')",
+        "number_of_groups": "quintiles=5, deciles=10, etc.",
+        "handling_of_ties": "How tied signal values are handled in ranking"
+      },
+
+      "time_series_treatment": {
+        "is_time_series": false,
+        "threshold": "If time-series signal, what threshold determines long/short",
+        "scaling": "How position size relates to signal magnitude"
+      }
+    },
+
+    {
+      "file_path": "portfolio.py",
+      "file_description": "Portfolio construction module",
+
+      "portfolio_functions": [
+        {
+          "function_name": "sort_into_portfolios",
+          "purpose": "Sort assets into quantile portfolios based on signal values",
+          "paper_reference": "Section reference",
+
+          "methodology": {
+            "sorting_variable": "Which signal column to sort on",
+            "n_groups": "Number of groups (5 for quintiles, 10 for deciles)",
+            "breakpoint_source": "full_sample | nyse_only | custom",
+            "assignment_rule": "How assets are assigned to groups (e.g., 'asset in group k if signal between breakpoint k-1 and breakpoint k')",
+            "rebalancing_dates": "When sorting occurs (e.g., 'last trading day of each month')"
+          },
+
+          "weighting_within_groups": {
+            "method": "equal_weight | value_weight | signal_weight",
+            "implementation": "How weights are computed within each group",
+            "weight_sum": "Whether weights sum to 1 within each group",
+            "handling_of_entries_exits": "How to handle assets entering/leaving a group mid-period"
+          },
+
+          "long_short_construction": {
+            "long_leg": "Which group(s) form the long portfolio (e.g., 'top quintile')",
+            "short_leg": "Which group(s) form the short portfolio (e.g., 'bottom quintile')",
+            "dollar_neutral": "Whether long and short legs have equal dollar exposure",
+            "return_computation": "long_return - short_return (equal dollar) or 0.5*long - 0.5*short"
+          }
+        },
+
+        {
+          "function_name": "apply_rebalancing",
+          "purpose": "Implement the rebalancing schedule with proper timing",
+
+          "timing": {
+            "signal_date": "When the signal is computed (e.g., 'end of month M')",
+            "trade_date": "When trades are executed (e.g., 'first trading day of month M+1')",
+            "holding_period": "How long positions are held before next rebalancing",
+            "overlapping_portfolios": "Whether Jegadeesh-Titman style overlapping portfolios are used"
+          },
+
+          "between_rebalancing": {
+            "weight_drift": "Whether weights are allowed to drift with prices or held fixed",
+            "dividend_treatment": "How dividends are handled between rebalancing dates",
+            "delisting_treatment": "What happens when a held asset is delisted mid-period"
+          }
+        },
+
+        {
+          "function_name": "compute_transaction_costs",
+          "purpose": "Compute realistic transaction costs for portfolio rebalancing",
+
+          "cost_model": {
+            "type": "proportional | fixed | market_impact",
+            "cost_rate": "e.g., '10 bps one-way' from config",
+            "applied_to": "Absolute weight changes at each rebalancing",
+            "formula": "TC_t = cost_rate * sum(|w_t - w_{t-1}|) where w are portfolio weights"
+          }
+        }
+      ]
+    }
+  ],
+
+  "data_flow_diagram": {
+    "step_1": "raw_prices (dates x assets) -> DataLoader.compute_returns() -> returns (dates x assets)",
+    "step_2": "returns (dates x assets) -> SignalGenerator.compute_signal() -> raw_signal (dates x assets)",
+    "step_3": "raw_signal -> SignalGenerator.normalize_signal() -> normalized_signal (dates x assets)",
+    "step_4": "normalized_signal -> PortfolioConstructor.sort_into_portfolios() -> group_assignments (dates x assets)",
+    "step_5": "group_assignments -> PortfolioConstructor.compute_weights() -> weights (dates x assets)",
+    "step_6": "weights + returns -> PortfolioConstructor.compute_portfolio_returns() -> strategy_returns (dates)",
+    "step_7": "weights -> PortfolioConstructor.compute_transaction_costs() -> costs (dates)",
+    "step_8": "strategy_returns - costs -> net_returns (dates)"
+  },
+
+  "critical_implementation_notes": [
+    "ALL lookback computations must use .shift() or equivalent to prevent look-ahead bias",
+    "Cross-sectional operations (ranking, z-scoring) must be done row-wise (axis=1)",
+    "Time-series operations (rolling mean, cumulative return) must be done column-wise (axis=0)",
+    "Signal DataFrame index must align exactly with return DataFrame index",
+    "Weight DataFrame must be lagged by at least 1 period relative to the signal used to compute it",
+    "Transaction costs are computed on weight CHANGES, not absolute weights",
+    "All parameters must reference config.py - no hardcoded values in signal/portfolio logic"
+  ]
+}
+
+SIGNAL LOGIC DESIGN GUIDELINES:
+1. FIDELITY TO PAPER: Every formula must match the paper exactly. If the paper uses cumulative returns for momentum, do NOT substitute log returns unless the paper explicitly says so.
+2. VECTORIZATION: Design all computations to work on full DataFrames, not loop over individual assets. pandas operations like .rolling(), .rank(), .shift() are preferred.
+3. LOOK-AHEAD PREVENTION: Every function must be designed so that data at time T only depends on data at times <= T (or T-lag as specified).
+4. PARAMETER EXTERNALIZATION: Every number that appears in a formula (lookback window, percentile cutoff, number of groups) must come from config.py.
+5. TESTABILITY: Each function should be independently testable with synthetic data that has known signal properties.
+6. DOCUMENTATION: Every function should reference the specific equation/section/table in the paper it implements.

@@ -1,0 +1,141 @@
+You are an expert quantitative developer tasked with refining an artifact (plan, analysis, or code) based on a critique from the verification step. Your goal is to produce an improved version that addresses ALL identified issues while maintaining consistency with the original paper's methodology.
+
+This is the REFINEMENT step of a self-refine loop. You must address every issue identified in the critique, especially critical and major issues. The refined artifact must be strictly better than the original.
+
+=== ARTIFACT TYPE ===
+{{artifact_type}}
+(One of: strategy_extraction, backtest_plan, architecture_design, file_analysis, signal_logic, generated_code, validation_report)
+=== END ARTIFACT TYPE ===
+
+=== ORIGINAL ARTIFACT ===
+{{artifact_content}}
+=== END ORIGINAL ARTIFACT ===
+
+=== CRITIQUE / VERIFICATION REPORT ===
+{{critique}}
+=== END CRITIQUE ===
+
+=== PAPER CONTEXT ===
+{{paper_context}}
+=== END PAPER CONTEXT ===
+
+REFINEMENT INSTRUCTIONS:
+
+1. **Address ALL Critical Issues First**: Go through every issue marked as "critical" in the critique and fix it. These are issues that would produce wrong backtest results.
+
+2. **Address Major Issues**: Fix all issues marked as "major". These noticeably affect backtest accuracy.
+
+3. **Address Minor Issues and Suggestions**: Fix these if possible without introducing new problems.
+
+4. **Maintain Paper Fidelity**: Every change must be consistent with the original paper's methodology. Do NOT introduce new methodology that the paper does not describe.
+
+5. **Preserve What Works**: Do not change parts of the artifact that the critique did not flag as problematic. Only modify what needs fixing.
+
+6. **Document Changes**: For each change, briefly note what was changed and why (referencing the critique issue ID).
+
+REFINEMENT APPROACH BY ARTIFACT TYPE:
+
+For STRATEGY EXTRACTION refinement:
+- Fix any incorrectly transcribed equations by re-reading the paper context carefully
+- Add any missing parameters, signals, or methodology steps
+- Correct any misclassified fields (e.g., wrong signal type, wrong asset class)
+- Ensure all "not_specified" fields are truly not in the paper before marking them as such
+
+For BACKTEST PLAN refinement:
+- Fix data pipeline gaps identified in the critique
+- Correct signal generation steps to match paper exactly
+- Update portfolio construction rules if they deviate from paper
+- Add any missing robustness checks or performance metrics
+
+For ARCHITECTURE DESIGN refinement:
+- Add missing modules or reorganize to fix structural issues
+- Update interfaces to prevent identified look-ahead bias risks
+- Add missing config parameters
+- Fix dependency relationships if incorrect
+
+For GENERATED CODE refinement:
+- Fix formula errors by implementing the correct equation from the paper
+- Add missing .shift() calls to prevent look-ahead bias
+- Replace hardcoded values with config references
+- Add proper missing data handling
+- Fix return computation methodology
+- Correct rebalancing timing and lags
+- Add missing type hints, docstrings, or error handling
+- Ensure all changes maintain vectorized operations (no new Python loops)
+
+For VALIDATION REPORT refinement:
+- Correct any false positive issue identifications
+- Add issues that the critique identified as missed
+- Recalibrate severity scores based on critique feedback
+- Update recommendations
+
+OUTPUT FORMAT:
+
+Return the COMPLETE refined artifact (not just the changes). The output should be in the same format as the original artifact (JSON for plans/analyses, Python code for code files).
+
+After the refined artifact, include a change log:
+
+{
+  "refinement_changelog": {
+    "total_issues_addressed": 5,
+    "critical_fixes": [
+      {
+        "critique_issue_id": 1,
+        "what_was_wrong": "Brief description of the original problem",
+        "what_was_changed": "Brief description of the fix",
+        "location": "Where in the artifact the change was made"
+      }
+    ],
+    "major_fixes": [
+      {
+        "critique_issue_id": 2,
+        "what_was_wrong": "Brief description",
+        "what_was_changed": "Brief description",
+        "location": "Where"
+      }
+    ],
+    "minor_fixes": [
+      {
+        "critique_issue_id": 3,
+        "what_was_wrong": "Brief description",
+        "what_was_changed": "Brief description",
+        "location": "Where"
+      }
+    ],
+    "issues_not_addressed": [
+      {
+        "critique_issue_id": 7,
+        "reason": "Why this issue was not addressed (e.g., 'requires additional paper information not available')"
+      }
+    ],
+    "additional_improvements": [
+      "Any improvements made beyond what the critique requested"
+    ],
+    "verification_needed": [
+      "Aspects of the refinement that should be re-verified"
+    ]
+  }
+}
+
+QUALITY CHECKS BEFORE OUTPUTTING:
+
+For code artifacts:
+- [ ] Every formula matches the paper exactly
+- [ ] No look-ahead bias: all signals use only past data (.shift() used correctly)
+- [ ] All parameters come from config.py (no hardcoded strategy values)
+- [ ] All functions have type hints and docstrings
+- [ ] Missing data handling is explicit and correct
+- [ ] Return computation matches paper methodology
+- [ ] Rebalancing timing has proper signal-to-trade lag
+- [ ] Code is vectorized (no Python loops over dates/assets)
+- [ ] All changes from the critique are addressed
+- [ ] No new issues were introduced by the fixes
+
+For plan/analysis artifacts:
+- [ ] All critique issues are addressed
+- [ ] The artifact is internally consistent
+- [ ] Paper methodology is faithfully represented
+- [ ] No information was lost from the original artifact
+- [ ] The refinement doesn't introduce new contradictions
+
+IMPORTANT: The refined artifact must be COMPLETE and SELF-CONTAINED. A reader should not need to reference the original artifact or the critique to understand or use the refined version.
