@@ -470,4 +470,12 @@ Examples:
 
 
 if __name__ == "__main__":
+    # Gateway mode: when JOB_ID env var is set, run via the gateway adapter
+    # instead of the CLI. This enables Quant2Repo to work both as a
+    # standalone tool and as a managed engine behind Any2Repo-Gateway.
+    from gateway_adapter import is_gateway_mode
+    if is_gateway_mode():
+        from gateway_adapter import run_gateway_mode
+        run_gateway_mode()  # does not return (calls sys.exit)
+
     main()

@@ -408,11 +408,69 @@ Quant2Repo validates generated backtests for common pitfalls:
 | Self-refine | All stages | All stages |
 | DevOps | Dockerfile, CI | Dockerfile, CI, Makefile |
 
-## Any2Repo Engine Protocol
+## Deployment Modes
 
-Quant2Repo implements the [Any2Repo Engine Protocol v1.0](https://github.com/nellaivijay/Any2Repo-Gateway/blob/main/docs/engine_protocol.md), enabling seamless integration with the Any2Repo-Gateway control plane.
+Quant2Repo supports two deployment modes. It works as a **standalone CLI tool** or as a **managed engine** behind the [Any2Repo-Gateway](https://github.com/nellaivijay/Any2Repo-Gateway).
 
-### Engine Manifest
+### Mode 1: Standalone CLI (default)
+
+The standard way to use Quant2Repo — run it directly from the command line:
+
+```bash
+# From paper URL
+python main.py --pdf_url "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1079975"
+
+# From strategy catalog
+python main.py --catalog time-series-momentum --mode agent --refine
+
+# Local PDF
+python main.py --pdf_path ./papers/momentum.pdf --output_dir ./my_strategy
+```
+
+No gateway, no infrastructure — just Python and an LLM API key.
+
+### Mode 2: Gateway-Managed Engine
+
+When deployed behind [Any2Repo-Gateway](https://github.com/nellaivijay/Any2Repo-Gateway), the engine is launched with a `JOB_ID` environment variable. It automatically switches to gateway mode:
+
+```bash
+# The gateway sets these env vars when launching the engine:
+JOB_ID=abc123 TENANT_ID=acme CATALOG_ID=time-series-momentum \
+  OUTPUT_DIR=/output ENGINE_OPTIONS='{"mode":"agent","refine":true}' \
+  python main.py
+```
+
+In gateway mode, the engine:
+1. Reads all parameters from environment variables (no CLI args needed)
+2. Resolves catalog entries to paper URLs automatically
+3. Runs the pipeline (classic or agent, based on `ENGINE_OPTIONS`)
+4. Writes `.any2repo_status.json` to the output directory
+5. Optionally POSTs results to `CALLBACK_URL`
+6. Exits with code 0 (success) or 1 (failure)
+
+**Gateway environment variables:**
+
+| Variable | Required | Description |
+|---|---|---|
+| `JOB_ID` | Yes | Unique job identifier (triggers gateway mode) |
+| `TENANT_ID` | No | Tenant who submitted the job |
+| `PDF_URL` | One of | URL of the research paper |
+| `PDF_BASE64` | these | Base64-encoded PDF |
+| `PAPER_TEXT` | three | Raw paper text |
+| `CATALOG_ID` | or this | Strategy ID from the built-in catalog |
+| `OUTPUT_DIR` | No | Output directory (default: `/tmp/q2r-{JOB_ID}`) |
+| `ENGINE_OPTIONS` | No | JSON string: `{"mode":"agent","refine":true,...}` |
+| `CALLBACK_URL` | No | URL to POST results on completion |
+| `Q2R_PROVIDER` | No | Override LLM provider |
+| `Q2R_MODEL` | No | Override model name |
+
+**Supported backends:** GCP Vertex AI, AWS Bedrock, Azure ML, On-Premise (Docker/K8s)
+
+### Any2Repo Engine Protocol
+
+Quant2Repo implements the [Any2Repo Engine Protocol v1.0](https://github.com/nellaivijay/Any2Repo-Gateway/blob/main/docs/engine_protocol.md).
+
+**Engine Manifest:**
 
 ```json
 {
@@ -430,17 +488,6 @@ Quant2Repo implements the [Any2Repo Engine Protocol v1.0](https://github.com/nel
   "timeout_seconds": 3600
 }
 ```
-
-### Gateway Integration
-
-Quant2Repo can be deployed as a managed engine behind the [Any2Repo-Gateway](https://github.com/nellaivijay/Any2Repo-Gateway):
-
-- **GCP Vertex AI**: Runs as a Vertex AI custom job
-- **AWS Bedrock**: Runs via Lambda async invocation
-- **Azure ML**: Runs as an Azure ML command job
-- **On-Premise**: Runs as a Docker container or HTTP service
-
-See the [Gateway documentation](https://github.com/nellaivijay/Any2Repo-Gateway) for deployment instructions.
 
 ## License
 
