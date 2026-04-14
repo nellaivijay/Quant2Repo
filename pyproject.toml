@@ -9,7 +9,7 @@ description = "Multi-model agentic framework that converts quantitative finance 
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
-authors = [{name = "Vijayakumar Ramdoss", email = "nellaivijay@gmail.com"}]
+authors = [{name = "Vijayakumar Ramdoss"}]
 keywords = ["quantitative-finance", "backtesting", "trading", "research", "llm", "agentic"]
 classifiers = [
     "Development Status :: 4 - Beta",

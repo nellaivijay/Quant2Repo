@@ -163,7 +163,7 @@ Build and run Quant2Repo itself as a container:
 ```dockerfile
 FROM python:3.10-slim
 
-LABEL maintainer="Vijayakumar Ramdoss <nellaivijay@gmail.com>"
+LABEL maintainer="Vijayakumar Ramdoss"
 LABEL description="Quant2Repo - Paper to Backtest Pipeline"
 
 ENV PYTHONUNBUFFERED=1

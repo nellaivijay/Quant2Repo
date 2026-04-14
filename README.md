@@ -444,9 +444,10 @@ In gateway mode, the engine:
 1. Reads all parameters from environment variables (no CLI args needed)
 2. Resolves catalog entries to paper URLs automatically
 3. Runs the pipeline (classic or agent, based on `ENGINE_OPTIONS`)
-4. Writes `.any2repo_status.json` to the output directory
-5. Optionally POSTs results to `CALLBACK_URL`
-6. Exits with code 0 (success) or 1 (failure)
+4. Uploads output artifact to cloud storage (GCS/S3/Azure Blob/local)
+5. Writes `.any2repo_status.json` to the output directory (with `artifact_url`)
+6. POSTs HMAC-signed webhook to the gateway (or legacy `CALLBACK_URL`)
+7. Exits with code 0 (success) or 1 (failure)
 
 **Gateway environment variables:**
 
@@ -460,7 +461,15 @@ In gateway mode, the engine:
 | `CATALOG_ID` | or this | Strategy ID from the built-in catalog |
 | `OUTPUT_DIR` | No | Output directory (default: `/tmp/q2r-{JOB_ID}`) |
 | `ENGINE_OPTIONS` | No | JSON string: `{"mode":"agent","refine":true,...}` |
-| `CALLBACK_URL` | No | URL to POST results on completion |
+| `CALLBACK_URL` | No | Legacy: URL to POST results on completion |
+| `WEBHOOK_URL` | No | Gateway webhook endpoint (preferred over `CALLBACK_URL`) |
+| `WEBHOOK_SECRET` | No | HMAC-SHA256 secret for signing webhook payloads |
+| `ARTIFACT_BACKEND` | No | Storage backend: `gcs`, `s3`, `azure`, `local` |
+| `ARTIFACT_BUCKET` | No | Bucket/container name for artifact upload |
+| `GCS_ARTIFACT_BUCKET` | No | Legacy alias for `ARTIFACT_BUCKET` (GCS) |
+| `PRESIGNED_URL_TTL` | No | Pre-signed URL lifetime in seconds (default: 900) |
+| `LOCAL_ARTIFACT_DIR` | No | Base directory for local artifact storage |
+| `AZURE_STORAGE_ACCOUNT_URL` | No | Azure storage account URL |
 | `Q2R_PROVIDER` | No | Override LLM provider |
 | `Q2R_MODEL` | No | Override model name |
 
