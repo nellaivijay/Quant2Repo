@@ -408,6 +408,40 @@ Quant2Repo validates generated backtests for common pitfalls:
 | Self-refine | All stages | All stages |
 | DevOps | Dockerfile, CI | Dockerfile, CI, Makefile |
 
+## Any2Repo Engine Protocol
+
+Quant2Repo implements the [Any2Repo Engine Protocol v1.0](https://github.com/nellaivijay/Any2Repo-Gateway/blob/main/docs/engine_protocol.md), enabling seamless integration with the Any2Repo-Gateway control plane.
+
+### Engine Manifest
+
+```json
+{
+  "engine_id": "quant2repo",
+  "version": "2.0.0",
+  "display_name": "Quant2Repo",
+  "description": "Convert quantitative finance papers into trading strategy repositories",
+  "protocol_version": "1.0",
+  "capabilities": ["pdf_input", "text_input", "catalog_input", "github_output", "local_output", "streaming_logs", "incremental_validation"],
+  "accepted_inputs": ["pdf_url", "pdf_base64", "paper_text", "catalog_id"],
+  "container_image": "any2repo/quant2repo:latest",
+  "supported_backends": ["gcp_vertex", "aws_bedrock", "azure_ml", "on_prem"],
+  "cpu_request": "4",
+  "memory_request": "16Gi",
+  "timeout_seconds": 3600
+}
+```
+
+### Gateway Integration
+
+Quant2Repo can be deployed as a managed engine behind the [Any2Repo-Gateway](https://github.com/nellaivijay/Any2Repo-Gateway):
+
+- **GCP Vertex AI**: Runs as a Vertex AI custom job
+- **AWS Bedrock**: Runs via Lambda async invocation
+- **Azure ML**: Runs as an Azure ML command job
+- **On-Premise**: Runs as a Docker container or HTTP service
+
+See the [Gateway documentation](https://github.com/nellaivijay/Any2Repo-Gateway) for deployment instructions.
+
 ## License
 
 Apache 2.0
