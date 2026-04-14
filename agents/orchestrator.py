@@ -14,6 +14,7 @@ Coordinates all pipeline stages:
 11. Save to disk
 """
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -86,6 +87,15 @@ class AgentOrchestrator:
         result.metadata["start_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
         result.metadata["config"] = dict(self.config)
 
+        # Initialize pipeline cache for reuse across runs
+        cache = None
+        try:
+            from advanced.cache import PipelineCache
+            cache_dir = self.config.get("cache_dir", ".q2r_cache")
+            cache = PipelineCache(cache_dir)
+        except (ImportError, Exception):
+            pass
+
         # Resolve catalog entry if provided
         catalog_metadata = {}
         if catalog_id:
@@ -124,17 +134,31 @@ class AgentOrchestrator:
             self._interactive_review(planning_result)
 
         # === Stage 4: Per-File Analysis ===
+        # === Stage 4b: CodeRAG (optional) — run in parallel with Stage 4 ===
         print("\n=== Stage 4/11: Per-File Analysis ===")
-        file_analyses = self._stage_file_analysis(
-            planning_result.combined_plan, paper_text, extraction_dict
-        )
-        result.file_analyses = file_analyses
-
-        # === Stage 4b: CodeRAG (optional) ===
         code_rag_index = None
-        if self.config["enable_code_rag"]:
-            print("\n=== Stage 4b: CodeRAG (Reference Mining) ===")
-            code_rag_index = self._stage_code_rag(extraction_dict, planning_result)
+        bg_futures = {}
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        try:
+            # Launch CodeRAG in background while file analysis runs
+            if self.config["enable_code_rag"]:
+                bg_futures["code_rag"] = executor.submit(
+                    self._stage_code_rag, extraction_dict, planning_result
+                )
+
+            # File analysis runs in foreground
+            file_analyses = self._stage_file_analysis(
+                planning_result.combined_plan, paper_text, extraction_dict
+            )
+            result.file_analyses = file_analyses
+
+            # Collect CodeRAG result
+            if "code_rag" in bg_futures:
+                print("\n=== Stage 4b: CodeRAG (Reference Mining) ===")
+                code_rag_index = bg_futures["code_rag"].result()
+        finally:
+            executor.shutdown(wait=False)
 
         # === Stage 5: Code Generation ===
         print("\n=== Stage 5/11: Code Generation ===")
@@ -311,6 +335,10 @@ class AgentOrchestrator:
                 generated_files = validator.fix_issues(
                     generated_files, report, paper_text
                 )
+                # Only re-validate if files were actually changed
+                if not validator._last_fixed_paths:
+                    print(f"  No files changed, stopping fix loop")
+                    break
                 report = validator.validate(
                     generated_files, paper_text, extraction_dict
                 )

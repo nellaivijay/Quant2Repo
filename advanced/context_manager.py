@@ -198,6 +198,7 @@ class ContextManager:
         # State
         self._file_summaries: Dict[str, FileSummary] = {}
         self._generated_files: Dict[str, str] = {}
+        self._cumulative_summary_text: str = ""
 
     # ──────────────────────────────────────────────────────────────────
     # Public API
@@ -270,6 +271,17 @@ class ContextManager:
 
         self._file_summaries[path] = summary
 
+        # Incrementally append to cumulative summary instead of rebuilding
+        exports_str = ", ".join(summary.exports[:10]) if summary.exports else "—"
+        new_section = (
+            f"**{path}** ({summary.char_count} chars): {summary.summary}\n"
+            f"  Exports: {exports_str}"
+        )
+        if self._cumulative_summary_text:
+            self._cumulative_summary_text += "\n\n" + new_section
+        else:
+            self._cumulative_summary_text = new_section
+
         logger.debug(
             "Recorded %s (%d chars, summary: %d chars)",
             path,
@@ -337,19 +349,8 @@ class ContextManager:
         return json.dumps(filtered, default=str, indent=2)[:5000]
 
     def _build_cumulative_summary(self) -> str:
-        """Build one-paragraph-per-file summaries of prior generated files."""
-        if not self._file_summaries:
-            return ""
-
-        lines: List[str] = []
-        for path, fs in self._file_summaries.items():
-            exports_str = ", ".join(fs.exports[:10]) if fs.exports else "—"
-            lines.append(
-                f"**{path}** ({fs.char_count} chars): {fs.summary}\n"
-                f"  Exports: {exports_str}"
-            )
-
-        return "\n\n".join(lines)
+        """Return the incrementally-built cumulative summary of prior files."""
+        return self._cumulative_summary_text
 
     def _build_dependency_code(self, deps: List[str]) -> str:
         """Build full source for dependency files."""

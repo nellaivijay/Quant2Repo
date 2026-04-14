@@ -30,6 +30,11 @@ class Q2RConfig:
     max_code_tokens: int = 16384
     max_analysis_tokens: int = 8192
 
+    # Timeout settings (seconds)
+    llm_generation_timeout: int = 600
+    validation_timeout: int = 300
+    execution_timeout: int = 900
+
     # Vision settings
     max_diagram_pages: int = 30
     diagram_dpi: int = 150
@@ -68,6 +73,23 @@ class Q2RConfig:
 
     # Output settings
     verbose: bool = False
+
+    def max_tokens_for_file(self, file_path: str) -> int:
+        """Return adaptive token limit based on file type."""
+        if file_path.endswith((".yaml", ".yml", ".toml", ".cfg", ".txt")):
+            return 2048
+        if file_path.endswith(".md"):
+            return 2048
+        lower = file_path.lower()
+        if "model" in lower or "network" in lower or "signal" in lower:
+            return 12288
+        if "backtest" in lower or "portfolio" in lower:
+            return 10240
+        if "test" in lower:
+            return 6144
+        if "config" in lower or "utils" in lower or "__init__" in lower:
+            return 4096
+        return 8192
 
     @classmethod
     def from_env(cls) -> "Q2RConfig":

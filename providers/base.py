@@ -7,10 +7,43 @@ along with shared configuration and result types.
 from __future__ import annotations
 
 import enum
+import functools
+import time as _time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
+
+
+def retry_on_error(max_retries: int = 2, backoff: float = 1.0):
+    """Decorator that retries LLM API calls on transient failures."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except (ConnectionError, TimeoutError, OSError) as exc:
+                    last_exc = exc
+                    if attempt < max_retries:
+                        wait = backoff * (2 ** attempt)
+                        print(f"  [Provider] Retry {attempt + 1}/{max_retries} "
+                              f"after {type(exc).__name__}, waiting {wait:.1f}s...")
+                        _time.sleep(wait)
+                except Exception as exc:
+                    msg = str(exc).lower()
+                    if ("rate" in msg or "429" in msg or "quota" in msg) and attempt < max_retries:
+                        last_exc = exc
+                        wait = backoff * (2 ** attempt)
+                        print(f"  [Provider] Rate limited, retry {attempt + 1}/{max_retries} "
+                              f"in {wait:.1f}s...")
+                        _time.sleep(wait)
+                    else:
+                        raise
+            raise last_exc  # type: ignore[misc]
+        return wrapper
+    return decorator
 
 
 class ModelCapability(enum.Enum):

@@ -142,6 +142,14 @@ class SelfRefiner:
                 )
                 break
 
+            # Early exit if only minor issues remain after first iteration
+            if i > 0 and not self._has_critical_issues(critique):
+                logger.info(
+                    "Refine iteration %d: only minor issues remain, stopping early",
+                    i + 1,
+                )
+                break
+
             # --- Refine ------------------------------------------------
             logger.info(
                 "Refine iteration %d: issues found, refining", i + 1
@@ -245,6 +253,14 @@ class SelfRefiner:
         # Heuristic keyword scan
         lower = critique.lower()
         return any(keyword in lower for keyword in _REFINEMENT_KEYWORDS)
+
+    @staticmethod
+    def _has_critical_issues(critique: str) -> bool:
+        """Return True if the critique contains critical/major severity keywords."""
+        critical_keywords = {"critical", "major", "missing", "incorrect", "wrong",
+                             "look-ahead bias", "not implemented"}
+        lower = critique.lower()
+        return any(kw in lower for kw in critical_keywords)
 
     # ------------------------------------------------------------------
     # Prompt construction

@@ -5,6 +5,7 @@ producing detailed specifications including classes, functions, imports,
 algorithms, I/O specs, test criteria, and quant-specific metadata.
 """
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -113,8 +114,9 @@ class FileAnalyzer:
     ) -> Dict[str, FileAnalysis]:
         """Analyze every ``.py`` file in *architecture_plan*.
 
-        Files are processed in plan order so that each analysis can
-        reference the results of previously analyzed files.
+        Files are processed in batches of 4 concurrently using a thread
+        pool. All files within a batch share the same snapshot of prior
+        analyses so they can run in parallel without conflicts.
 
         Args:
             architecture_plan: An ``ArchitecturePlan`` (or duck-typed
@@ -128,19 +130,45 @@ class FileAnalyzer:
             Mapping of file path → :class:`FileAnalysis`.
         """
         analyses: Dict[str, FileAnalysis] = {}
-        prior_analyses: List[FileAnalysis] = []
 
-        for file_info in architecture_plan.files:
-            path = file_info.get("path", "")
-            if not path.endswith(".py"):
-                continue
+        # Pre-build contexts that are the same for every file
+        paper_ctx = paper_text[: self._PAPER_BUDGET]
+        strategy_ctx = ""
+        if isinstance(strategy_extraction, dict):
+            strategy_ctx = json.dumps(strategy_extraction, default=str)[
+                : self._PAPER_BUDGET
+            ]
 
-            logger.info("Analyzing %s", path)
-            analysis = self.analyze_file(
-                file_info, paper_text, strategy_extraction, prior_analyses
-            )
-            analyses[path] = analysis
-            prior_analyses.append(analysis)
+        py_files = [
+            fi for fi in architecture_plan.files
+            if fi.get("path", "").endswith(".py")
+        ]
+
+        BATCH_SIZE = 4
+        for batch_start in range(0, len(py_files), BATCH_SIZE):
+            batch = py_files[batch_start : batch_start + BATCH_SIZE]
+            prior_snapshot = list(analyses.values())
+
+            def _analyze_one(file_info: Dict[str, Any]) -> FileAnalysis:
+                path = file_info.get("path", "")
+                logger.info("Analyzing %s", path)
+                return self.analyze_file(
+                    file_info, paper_text, strategy_extraction,
+                    prior_snapshot,
+                    paper_context=paper_ctx,
+                    strategy_context=strategy_ctx,
+                )
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=BATCH_SIZE
+            ) as executor:
+                futures = {
+                    executor.submit(_analyze_one, fi): fi for fi in batch
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    fi = futures[future]
+                    analysis = future.result()
+                    analyses[fi.get("path", "")] = analysis
 
         return analyses
 
@@ -150,6 +178,8 @@ class FileAnalyzer:
         paper_text: str,
         strategy_extraction: dict,
         prior_analyses: List[FileAnalysis],
+        paper_context: Optional[str] = None,
+        strategy_context: Optional[str] = None,
     ) -> FileAnalysis:
         """Produce a :class:`FileAnalysis` for a single file.
 

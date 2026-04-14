@@ -18,6 +18,7 @@ Workflow:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -90,12 +91,14 @@ class CodeRAGIndex:
         reference_files: Flat list of all downloaded reference files.
         repos_searched: Repository slugs that were searched.
         search_queries: Queries that were issued to GitHub.
+        file_lookup: O(1) lookup dict mapping ``repo/path`` → content.
     """
 
     mappings: Dict[str, FileMapping] = field(default_factory=dict)
     reference_files: List[ReferenceFile] = field(default_factory=list)
     repos_searched: List[str] = field(default_factory=list)
     search_queries: List[str] = field(default_factory=list)
+    file_lookup: Dict[str, str] = field(default_factory=dict)
 
     def get_mapping(self, target_path: str) -> Optional[FileMapping]:
         """Return the :class:`FileMapping` for *target_path*, if any."""
@@ -169,6 +172,9 @@ class CodeRAG:
             try:
                 files = self._download_repo_files(repo_info)
                 index.reference_files.extend(files)
+                # Populate file_lookup for O(1) content retrieval
+                for f in files:
+                    index.file_lookup[f"{f.repo}/{f.path}"] = f.content
             except Exception as e:
                 logger.warning(
                     "Failed to download from %s: %s",
@@ -289,6 +295,7 @@ class CodeRAG:
         """Search GitHub for relevant repositories.
 
         Returns a deduplicated list of repo dicts sorted by stars.
+        Uses a file-based cache to avoid redundant API calls.
         """
         try:
             import requests
@@ -296,10 +303,33 @@ class CodeRAG:
             logger.warning("requests not installed — skipping GitHub search")
             return []
 
+        # Set up file-based cache directory
+        cache_dir = os.path.join(".q2r_cache", "github_search")
+        os.makedirs(cache_dir, exist_ok=True)
+
         seen: set = set()
         repos: List[dict] = []
 
         for query in queries:
+            # Check cache first
+            query_hash = hashlib.sha256(
+                f"{query} language:python".encode()
+            ).hexdigest()
+            cache_path = os.path.join(cache_dir, f"{query_hash}.json")
+
+            if os.path.exists(cache_path):
+                try:
+                    with open(cache_path, "r") as fh:
+                        cached_items = json.load(fh)
+                    for item in cached_items:
+                        slug = item.get("full_name", "")
+                        if slug and slug not in seen:
+                            seen.add(slug)
+                            repos.append(item)
+                    continue
+                except Exception:
+                    pass  # Cache corrupted; fall through to API call
+
             try:
                 resp = requests.get(
                     self._GITHUB_SEARCH_URL,
@@ -320,7 +350,16 @@ class CodeRAG:
                     )
                     continue
 
-                for item in resp.json().get("items", []):
+                query_results = resp.json().get("items", [])
+
+                # Save to cache
+                try:
+                    with open(cache_path, "w") as fh:
+                        json.dump(query_results, fh)
+                except Exception:
+                    pass
+
+                for item in query_results:
                     slug = item.get("full_name", "")
                     if slug not in seen:
                         seen.add(slug)

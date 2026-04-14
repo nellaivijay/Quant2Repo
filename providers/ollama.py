@@ -105,6 +105,9 @@ class OllamaProvider(BaseProvider):
                 self._host,
             )
 
+        self._models_cache: list | None = None
+        self._models_cache_time: float = 0.0
+
     # ------------------------------------------------------------------
     # BaseProvider interface
     # ------------------------------------------------------------------
@@ -114,7 +117,13 @@ class OllamaProvider(BaseProvider):
         return self._model_name
 
     def available_models(self) -> list[ModelInfo]:
-        return list(_MODELS)
+        import time as _t
+        now = _t.monotonic()
+        if self._models_cache is not None and (now - self._models_cache_time) < 60:
+            return self._models_cache
+        self._models_cache = list(_MODELS)
+        self._models_cache_time = now
+        return self._models_cache
 
     def generate(
         self,

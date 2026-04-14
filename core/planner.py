@@ -78,9 +78,14 @@ class DecomposedPlanner:
         """Run all 4 planning stages."""
         result = PlanningResult()
 
+        # Build paper context once and reuse across all steps
+        paper_ctx = paper_text[:30000]
+
         # Stage 1: Overall plan
         logger.info("Planning Stage 1: Overall backtest plan")
-        result.overall_plan = self._step1_overall_plan(paper_text, strategy_extraction)
+        result.overall_plan = self._step1_overall_plan(
+            paper_text, strategy_extraction, paper_ctx=paper_ctx,
+        )
         if refiner:
             refined = refiner.refine(
                 json.dumps(self._plan_to_dict(result.overall_plan)),
@@ -92,7 +97,8 @@ class DecomposedPlanner:
         # Stage 2: Architecture design
         logger.info("Planning Stage 2: Architecture design")
         result.architecture_design = self._step2_architecture_design(
-            paper_text, strategy_extraction, result.overall_plan
+            paper_text, strategy_extraction, result.overall_plan,
+            paper_ctx=paper_ctx,
         )
         if refiner:
             refined = refiner.refine(
@@ -106,7 +112,8 @@ class DecomposedPlanner:
         logger.info("Planning Stage 3: Signal logic design")
         result.logic_design = self._step3_logic_design(
             paper_text, strategy_extraction,
-            result.overall_plan, result.architecture_design
+            result.overall_plan, result.architecture_design,
+            paper_ctx=paper_ctx,
         )
 
         # Stage 4: Config generation
@@ -121,10 +128,11 @@ class DecomposedPlanner:
         return result
 
     def _step1_overall_plan(self, paper_text: str,
-                            strategy_extraction: dict) -> OverallPlan:
+                            strategy_extraction: dict,
+                            paper_ctx: str = None) -> OverallPlan:
         """Extract high-level backtest plan from paper."""
         prompt = self._load_prompt("backtest_planner.txt", {
-            "paper_analysis": paper_text[:30000],
+            "paper_analysis": paper_ctx or paper_text[:30000],
             "strategy_extraction": json.dumps(strategy_extraction, default=str)[:10000],
         })
 
@@ -165,10 +173,11 @@ class DecomposedPlanner:
 
     def _step2_architecture_design(self, paper_text: str,
                                    strategy_extraction: dict,
-                                   overall_plan: OverallPlan) -> ArchitectureDesign:
+                                   overall_plan: OverallPlan,
+                                   paper_ctx: str = None) -> ArchitectureDesign:
         """Design repository file structure."""
         prompt = self._load_prompt("architecture_design.txt", {
-            "paper_analysis": paper_text[:20000],
+            "paper_analysis": paper_ctx or paper_text[:20000],
             "strategy_extraction": json.dumps(strategy_extraction, default=str)[:8000],
             "overall_plan": json.dumps(self._plan_to_dict(overall_plan))[:5000],
         })
@@ -201,10 +210,11 @@ class DecomposedPlanner:
     def _step3_logic_design(self, paper_text: str,
                             strategy_extraction: dict,
                             overall_plan: OverallPlan,
-                            arch_design: ArchitectureDesign) -> LogicDesign:
+                            arch_design: ArchitectureDesign,
+                            paper_ctx: str = None) -> LogicDesign:
         """Determine execution order and per-file specifications."""
         prompt = self._load_prompt("signal_logic.txt", {
-            "paper_analysis": paper_text[:20000],
+            "paper_analysis": paper_ctx or paper_text[:20000],
             "strategy_extraction": json.dumps(strategy_extraction, default=str)[:8000],
             "architecture_design": json.dumps(self._arch_to_dict(arch_design))[:5000],
         })

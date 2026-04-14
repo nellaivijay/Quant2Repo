@@ -115,6 +115,7 @@ class CodeValidator:
     def __init__(self, provider: Any, config: Optional[Dict[str, Any]] = None) -> None:
         self.provider = provider
         self.config = config or {}
+        self._last_fixed_paths: set = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -195,6 +196,8 @@ class CodeValidator:
 
         Only files that have at least one *critical* issue are
         re-generated.  Non-critical issues are left for manual review.
+        Sets ``self._last_fixed_paths`` to the set of file paths whose
+        content was actually changed during this call.
 
         Args:
             generated_files: Current mapping of path → source.
@@ -204,6 +207,8 @@ class CodeValidator:
         Returns:
             A *new* mapping of path → source with fixes applied.
         """
+        self._last_fixed_paths = set()
+
         critical_issues = [
             i for i in report.issues if i.severity == "critical"
         ]
@@ -225,16 +230,20 @@ class CodeValidator:
                 )
                 continue
 
+            original_content = fixed_files[file_path]
+
             logger.info(
                 "Auto-fixing %d critical issue(s) in %s",
                 len(issues),
                 file_path,
             )
             fixed_code = self._fix_single_file(
-                file_path, fixed_files[file_path], issues, paper_text
+                file_path, original_content, issues, paper_text
             )
             if fixed_code:
                 fixed_files[file_path] = fixed_code
+                if fixed_code != original_content:
+                    self._last_fixed_paths.add(file_path)
 
         return fixed_files
 

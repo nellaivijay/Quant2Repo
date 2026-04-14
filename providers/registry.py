@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+import time as _time
 from typing import Any, Optional
 
 from .base import BaseProvider, ModelCapability
@@ -30,6 +31,9 @@ _CAPABILITY_PREFERENCES: dict[ModelCapability, list[str]] = {
     ModelCapability.FILE_UPLOAD: ["gemini"],
     ModelCapability.STREAMING: ["openai", "anthropic", "gemini", "ollama"],
 }
+
+_AVAILABLE_CACHE: dict = {"timestamp": 0.0, "providers": None}
+_CACHE_TTL = 30  # seconds
 
 
 class ProviderRegistry:
@@ -119,11 +123,11 @@ class ProviderRegistry:
 
     @classmethod
     def detect_available(cls) -> list[str]:
-        """Return providers whose credentials / connectivity are present.
+        """Return providers whose credentials / connectivity are present."""
+        now = _time.monotonic()
+        if _AVAILABLE_CACHE["providers"] is not None and (now - _AVAILABLE_CACHE["timestamp"]) < _CACHE_TTL:
+            return _AVAILABLE_CACHE["providers"]
 
-        * For cloud providers the corresponding env-var must be set.
-        * For Ollama, a quick HTTP health-check is performed.
-        """
         available: list[str] = []
         for name, (_mod, _cls, env_key) in cls._PROVIDERS.items():
             if name == "ollama":
@@ -131,6 +135,9 @@ class ProviderRegistry:
                     available.append(name)
             elif os.environ.get(env_key):
                 available.append(name)
+
+        _AVAILABLE_CACHE["timestamp"] = now
+        _AVAILABLE_CACHE["providers"] = available
         return available
 
     @classmethod
@@ -167,19 +174,27 @@ class ProviderRegistry:
     ) -> float:
         """Estimate the USD cost for a generation request.
 
-        The provider is instantiated transiently to look up model metadata.
-        Returns ``0.0`` for local providers or unknown models.
+        Uses the provider's KNOWN_MODELS class attribute for O(1) lookup
+        instead of instantiating the full provider. Returns ``0.0`` for
+        local providers or unknown models.
         """
+        if provider_name not in cls._PROVIDERS:
+            return 0.0
         try:
-            provider = cls.create(provider_name)
-            for m in provider.available_models():
+            module_path, class_name, _env_key = cls._PROVIDERS[provider_name]
+            module = importlib.import_module(module_path)
+            provider_cls = getattr(module, class_name)
+            known = getattr(provider_cls, "KNOWN_MODELS", None)
+            if known is None:
+                known = getattr(provider_cls, "_MODELS", [])
+            for m in known:
                 if m.name == model_name:
                     cost = (
                         m.cost_per_1k_input * (input_tokens / 1000)
                         + m.cost_per_1k_output * (output_tokens / 1000)
                     )
                     return round(cost, 6)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug(
                 "Could not estimate cost for %s/%s", provider_name, model_name
             )

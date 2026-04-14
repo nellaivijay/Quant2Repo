@@ -178,9 +178,14 @@ class AutoDebugger:
                     fix.original_content = current_files.get(fix.file_path, "")
                     current_files[fix.file_path] = fix.fixed_content
 
-            # Write fixed files to disk and re-execute
+            # Write only modified files to disk and re-execute
             if executor and fixes:
-                self._write_files(repo_dir, current_files)
+                for fix in fixes:
+                    if fix.file_path and fix.fixed_content:
+                        full_path = os.path.join(repo_dir, fix.file_path)
+                        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                        with open(full_path, "w") as f:
+                            f.write(fix.fixed_content)
                 execution_result = executor.execute(repo_dir)
                 report.resolved = execution_result.success
 

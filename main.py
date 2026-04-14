@@ -125,6 +125,10 @@ def run_classic(pdf_url: str = "", pdf_path: str = "",
                 generated_files = validator.fix_issues(
                     generated_files, report, paper_text
                 )
+                # Only re-validate if files were actually changed
+                if not validator._last_fixed_paths:
+                    print(f"  No files changed, stopping fix loop")
+                    break
                 report = validator.validate(
                     generated_files, paper_text, extraction_dict
                 )
@@ -137,9 +141,13 @@ def run_classic(pdf_url: str = "", pdf_path: str = "",
     # Stage 6: Save
     print(f"\n[6/6] Saving to {output_dir}...")
     os.makedirs(output_dir, exist_ok=True)
+    # Pre-create all needed directories in a single batch
+    needed_dirs = {os.path.dirname(os.path.join(output_dir, fp))
+                   for fp in generated_files}
+    for d in sorted(needed_dirs):
+        os.makedirs(d, exist_ok=True)
     for path, content in generated_files.items():
         full_path = os.path.join(output_dir, path)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, "w") as f:
             f.write(content)
 

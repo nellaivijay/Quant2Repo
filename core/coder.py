@@ -7,10 +7,13 @@ generated with full context from the paper, strategy extraction, file
 analyses, and previously generated files.
 """
 
+import concurrent.futures
 import json
 import logging
 import os
 import re
+from collections import defaultdict, deque
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,73 @@ class CodeSynthesizer:
     # Public API
     # ------------------------------------------------------------------
 
+    def _build_static_context(
+        self, paper_text: str, strategy_extraction: dict,
+    ) -> str:
+        """Build prompt context that is identical for every file.
+
+        Computed once in ``generate_codebase`` and reused across all
+        ``_generate_single_file`` calls to avoid redundant work.
+        """
+        parts: List[str] = [
+            f"PAPER CONTEXT:\n{paper_text[:15000]}",
+        ]
+        if isinstance(strategy_extraction, dict):
+            eqs = strategy_extraction.get("key_equations", [])
+            if eqs:
+                parts.append("KEY EQUATIONS:\n" + "\n".join(f"- {eq}" for eq in eqs))
+            parts.append(
+                f"STRATEGY DETAILS:\n"
+                f"{json.dumps(strategy_extraction, default=str)[:5000]}"
+            )
+        return "\n\n".join(parts)
+
+    def _compute_depth_levels(
+        self, files: List[Dict[str, Any]],
+    ) -> List[List[Dict[str, Any]]]:
+        """Group files by dependency depth using topological sort.
+
+        Files at the same depth level have no inter-dependencies and can
+        be generated in parallel.
+        """
+        path_to_info: Dict[str, Dict[str, Any]] = {
+            f.get("path", ""): f for f in files
+        }
+        plan_paths = set(path_to_info.keys())
+
+        in_degree: Dict[str, int] = {f.get("path", ""): 0 for f in files}
+        dependents: Dict[str, List[str]] = defaultdict(list)
+
+        for f in files:
+            path = f.get("path", "")
+            deps = f.get("dependencies", [])
+            if not deps:
+                base = os.path.basename(path)
+                deps = self._IMPLICIT_DEPS.get(base, [])
+            for dep in deps:
+                if dep in plan_paths:
+                    in_degree[path] += 1
+                    dependents[dep].append(path)
+
+        levels: List[List[Dict[str, Any]]] = []
+        queue = deque(p for p, deg in in_degree.items() if deg == 0)
+
+        while queue:
+            level_paths = list(queue)
+            queue.clear()
+            levels.append([path_to_info[p] for p in level_paths])
+            for p in level_paths:
+                for dep in dependents[p]:
+                    in_degree[dep] -= 1
+                    if in_degree[dep] == 0:
+                        queue.append(dep)
+
+        remaining = [path_to_info[p] for p in in_degree if in_degree[p] > 0]
+        if remaining:
+            levels.append(remaining)
+
+        return levels
+
     def generate_codebase(
         self,
         architecture_plan: Any,
@@ -73,36 +143,68 @@ class CodeSynthesizer:
             Mapping of file path → generated content string.
         """
         generated: Dict[str, str] = {}
+        generated_lock = Lock()
         files = sorted(
             architecture_plan.files, key=lambda f: f.get("priority", 99)
         )
 
-        for file_info in files:
-            path = file_info.get("path", "")
-            logger.info("Generating %s", path)
+        # Build static context once
+        static_context = self._build_static_context(paper_text, strategy_extraction)
 
-            if context_manager is not None:
-                content = self._generate_with_context_manager(
-                    file_info,
-                    paper_text,
-                    strategy_extraction,
-                    file_analyses,
-                    generated,
-                    context_manager,
-                )
+        # Group files by dependency depth for parallel generation
+        depth_levels = self._compute_depth_levels(files)
+        total = len(files)
+        counter = [0]
+
+        for level in depth_levels:
+            if len(level) == 1:
+                file_info = level[0]
+                path = file_info.get("path", "")
+                counter[0] += 1
+                logger.info("(%d/%d) Generating %s", counter[0], total, path)
+
+                if context_manager is not None:
+                    content = self._generate_with_context_manager(
+                        file_info, paper_text, strategy_extraction,
+                        file_analyses, generated, context_manager,
+                    )
+                else:
+                    content = self._generate_single_file(
+                        file_info, static_context, file_analyses, generated,
+                    )
+
+                generated[path] = content
+                if context_manager is not None:
+                    context_manager.record_file(path, content)
             else:
-                content = self._generate_single_file(
-                    file_info,
-                    paper_text,
-                    strategy_extraction,
-                    file_analyses,
-                    generated,
-                )
+                # Multiple independent files — generate in parallel
+                def _gen(fi: Dict[str, Any]) -> tuple:
+                    p = fi.get("path", "")
+                    with generated_lock:
+                        counter[0] += 1
+                        idx = counter[0]
+                        snapshot = dict(generated)
+                    logger.info("(%d/%d) Generating %s", idx, total, p)
+                    if context_manager is not None:
+                        c = self._generate_with_context_manager(
+                            fi, paper_text, strategy_extraction,
+                            file_analyses, snapshot, context_manager,
+                        )
+                    else:
+                        c = self._generate_single_file(
+                            fi, static_context, file_analyses, snapshot,
+                        )
+                    return p, c
 
-            generated[path] = content
-
-            if context_manager is not None:
-                context_manager.record_file(path, content)
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(len(level), 4)
+                ) as executor:
+                    futures = {executor.submit(_gen, fi): fi for fi in level}
+                    for future in concurrent.futures.as_completed(futures):
+                        path, content = future.result()
+                        generated[path] = content
+                        if context_manager is not None:
+                            context_manager.record_file(path, content)
 
         return generated
 
@@ -113,8 +215,7 @@ class CodeSynthesizer:
     def _generate_single_file(
         self,
         file_info: Dict[str, Any],
-        paper_text: str,
-        strategy_extraction: dict,
+        static_context: str,
         file_analyses: Optional[dict],
         generated: Dict[str, str],
     ) -> str:
@@ -137,15 +238,23 @@ class CodeSynthesizer:
                 default=str,
             )[:4000]
 
-        equations = ""
-        if isinstance(strategy_extraction, dict):
-            eqs = strategy_extraction.get("key_equations", [])
-            if eqs:
-                equations = "\n".join(f"- {eq}" for eq in eqs)
-
-        prompt = self._build_prompt(
-            path, description, paper_text, dep_code,
-            analysis_text, equations, strategy_extraction,
+        prompt = (
+            f"Generate the Python file '{path}' for a quantitative trading backtest.\n\n"
+            f"DESCRIPTION: {description}\n\n"
+            f"{static_context}\n\n"
+            f"FILE ANALYSIS:\n{analysis_text}\n\n"
+            f"DEPENDENCY CODE (already generated):\n{dep_code}\n\n"
+            "REQUIREMENTS:\n"
+            "- Implement EXACTLY what the paper describes\n"
+            "- Use pandas/numpy for vectorized operations\n"
+            "- Include docstrings with paper equation references\n"
+            "- Use config references for ALL hyperparameters (never hardcode)\n"
+            "- NO look-ahead bias: signals must use only past data\n"
+            "- Proper date alignment: signal computed at time t, trade at t+1\n"
+            "- Handle missing data with forward-fill or drop as appropriate\n"
+            "- Include type hints\n"
+            "- Follow quantitative finance conventions\n\n"
+            "Return ONLY the Python code. No markdown fences."
         )
 
         max_tokens = self._max_tokens_for(path)
